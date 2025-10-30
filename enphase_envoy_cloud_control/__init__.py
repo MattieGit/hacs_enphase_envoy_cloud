@@ -31,7 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Manually trigger a cloud data refresh."""
         _LOGGER.debug("[Enphase] Manual force refresh service called.")
         try:
-            await coordinator.async_request_refresh()
+            await coordinator.async_force_refresh()
             _LOGGER.info("[Enphase] Cloud data refreshed via service.")
         except Exception as e:
             _LOGGER.error("[Enphase] Manual refresh failed: %s", e)

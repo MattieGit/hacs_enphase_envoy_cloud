@@ -158,7 +158,8 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
     def _schedules(self):
         """Return current schedules for this mode."""
         try:
-            d = (self.coordinator.data or {}).get("data", {})
+            data_root = self.coordinator.data or {}
+            d = data_root.get("data", {})
 
             # Case 1: <mode>Control.schedules[]
             block = d.get(f"{self.mode}Control") or {}
@@ -170,9 +171,28 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
             if block2 and isinstance(block2, dict) and "details" in block2:
                 return block2["details"]
 
-            # Case 3: fallback — use cached schedules
+            # Case 3: coordinator exposes schedules at the root level
+            sched_root = data_root.get("schedules")
+            if isinstance(sched_root, dict):
+                candidates = []
+                if self.mode in sched_root:
+                    candidates.append(sched_root[self.mode])
+                if "data" in sched_root and isinstance(sched_root["data"], dict):
+                    candidates.append(sched_root["data"].get(self.mode))
+
+                for candidate in candidates:
+                    if not candidate:
+                        continue
+                    if isinstance(candidate, dict) and "details" in candidate:
+                        return candidate["details"]
+                    if isinstance(candidate, list):
+                        return candidate
+
+            # Case 4: fallback — use cached schedules
             if hasattr(self.coordinator.client, "_last_schedules"):
                 schedules = getattr(self.coordinator.client, "_last_schedules")
+            elif data_root.get("schedules_raw"):
+                schedules = data_root.get("schedules_raw")
             else:
                 # Schedule a background safe fetch
                 self.coordinator.hass.async_create_task(self._async_fetch_schedules_safe())
@@ -183,13 +203,13 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
                     m = schedules[self.mode]
                     if isinstance(m, dict) and "details" in m:
                         return m["details"]
-                    elif isinstance(m, list):
+                    if isinstance(m, list):
                         return m
-                elif "data" in schedules and self.mode in schedules["data"]:
-                    m = schedules["data"][self.mode]
+                if "data" in schedules and isinstance(schedules["data"], dict):
+                    m = schedules["data"].get(self.mode)
                     if isinstance(m, dict) and "details" in m:
                         return m["details"]
-                    elif isinstance(m, list):
+                    if isinstance(m, list):
                         return m
             return []
         except Exception as e:
