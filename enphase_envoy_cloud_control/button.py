@@ -28,7 +28,7 @@ class EnphaseForceCloudRefreshButton(CoordinatorEntity, ButtonEntity):
         """Handle button press."""
         _LOGGER.info("[Enphase] Force Cloud Refresh button pressed.")
         try:
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
             _LOGGER.info("[Enphase] Data refresh completed successfully.")
         except Exception as e:
             _LOGGER.error("[Enphase] Data refresh failed: %s", e)

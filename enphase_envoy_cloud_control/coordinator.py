@@ -56,9 +56,13 @@ class EnphaseCoordinator(DataUpdateCoordinator):
             battery_data = self.client.battery_settings() or {}
             schedules = self.client.get_schedules() or {}
 
+            # Persist the last schedule payload for entities that reference it
+            # outside of the coordinator data structure (legacy behaviour).
+            setattr(self.client, "_last_schedules", schedules)
+
             merged = {
                 "data": battery_data.get("data", battery_data),
-                "schedules": schedules,
+                "schedules": schedules.get("data", schedules),
             }
             _LOGGER.debug("[Enphase] Data fetch complete. Keys: %s", list(merged.keys()))
             return merged
@@ -69,4 +73,4 @@ class EnphaseCoordinator(DataUpdateCoordinator):
     async def async_force_refresh(self):
         """Manually triggered refresh (Force Cloud Refresh button)."""
         _LOGGER.info("[Enphase] Manual cloud refresh requested.")
-        await self.async_request_refresh()
+        await self.async_refresh()
