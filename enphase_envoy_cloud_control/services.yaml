@@ -1,0 +1,82 @@
+force_cloud_refresh:
+  name: Force Cloud Refresh
+  description: Manually refresh Enphase cloud data immediately.
+
+add_schedule:
+  name: "Add Schedule"
+  description: "Create a new Enphase battery schedule via the Cloud API."
+  fields:
+    schedule_type:
+      name: "Schedule Type"
+      description: "Choose which mode to schedule"
+      required: true
+      selector:
+        select:
+          options:
+            - "cfg"   # Charge from grid
+            - "dtg"   # Discharge to grid
+            - "rbd"   # Restrict battery discharge
+    start_time:
+      name: "Start Time"
+      description: "Time the schedule starts (HH:MM)"
+      required: true
+      selector:
+        time:
+    end_time:
+      name: "End Time"
+      description: "Time the schedule ends (HH:MM)"
+      required: true
+      selector:
+        time:
+    limit:
+      name: "Limit"
+      description: "Power limit for this schedule (kW)"
+      required: true
+      example: 5
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 0.5
+          mode: box
+    days:
+      name: "Days of Week"
+      description: "Select days this schedule applies (0=Sunday ... 6=Saturday)"
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - "0"
+            - "1"
+            - "2"
+            - "3"
+            - "4"
+            - "5"
+            - "6"
+
+delete_schedule:
+  name: "Delete Schedule"
+  description: "Remove an existing Enphase schedule using its scheduleId."
+  fields:
+    schedule_id:
+      name: "Schedule ID"
+      description: "Enter the numeric scheduleId shown in the schedule sensor."
+      required: true
+      selector:
+        text:
+
+validate_schedule:
+  name: "Validate Schedule"
+  description: "Check if a new schedule configuration is valid before submission."
+  fields:
+    schedule_type:
+      name: "Schedule Type"
+      description: "cfg, dtg, or rbd"
+      required: true
+      selector:
+        select:
+          options:
+            - "cfg"
+            - "dtg"
+            - "rbd"

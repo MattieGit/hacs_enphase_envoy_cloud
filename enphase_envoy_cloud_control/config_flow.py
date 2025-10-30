@@ -1,0 +1,54 @@
+from __future__ import annotations
+import logging
+import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.core import callback
+from homeassistant.helpers import selector
+from .const import DOMAIN
+from .options_flow import EnphaseOptionsFlowHandler
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class EnphaseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle the configuration flow for Enphase Envoy Cloud Control."""
+
+    VERSION = 1
+
+    async def async_step_user(self, user_input=None):
+        """Handle the initial step for setup."""
+        errors = {}
+
+        if user_input is not None:
+            # Basic validation
+            if not user_input.get("email") or not user_input.get("password"):
+                errors["base"] = "missing_credentials"
+            elif not user_input.get("user_id") or not user_input.get("battery_id"):
+                errors["base"] = "missing_ids"
+            else:
+                await self.async_set_unique_id(user_input["email"])
+                self._abort_if_unique_id_configured()
+                _LOGGER.info(
+                    "[Enphase] Creating new config entry for %s",
+                    user_input["email"],
+                )
+                return self.async_create_entry(title="Enphase Envoy Cloud Control", data=user_input)
+
+        data_schema = vol.Schema(
+            {
+                vol.Required("email"): str,
+                vol.Required("password"): str,
+                vol.Required("user_id"): str,
+                vol.Required("battery_id"): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="user", data_schema=data_schema, errors=errors
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Return the options flow handler."""
+        return EnphaseOptionsFlowHandler(config_entry)
