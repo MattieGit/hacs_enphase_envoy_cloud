@@ -3,7 +3,8 @@ from datetime import timedelta, datetime, timezone
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from .const import DOMAIN, LOGGER, DEFAULT_POLL_INTERVAL
+from .const import LOGGER, DEFAULT_POLL_INTERVAL
+from .enphase_client import EnphaseClient
 
 _LOGGER = LOGGER
 
@@ -15,7 +16,12 @@ class EnphaseCoordinator(DataUpdateCoordinator):
         """Initialize the coordinator."""
         self.hass = hass
         self.entry = entry
-        self.client = hass.data[DOMAIN][entry.entry_id]["client"]
+        self.client = EnphaseClient(
+            email=entry.data.get("email"),
+            password=entry.data.get("password"),
+            user_id=entry.data.get("user_id"),
+            battery_id=entry.data.get("battery_id"),
+        )
 
         # ✅ Custom polling interval (default 30s)
         poll_interval = entry.options.get("poll_interval", DEFAULT_POLL_INTERVAL)
