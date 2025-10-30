@@ -26,6 +26,9 @@ CONF_USER_ID = "user_id"
 CONF_BATTERY_ID = "battery_id"
 CONF_SITE_ID = "site_id"
 
+# Defaults
+DEFAULT_POLL_INTERVAL = 30
+
 # Cache path
 CACHE_DIR = ".cache"
 CACHE_FILE = f"{CACHE_DIR}/auth.json"
