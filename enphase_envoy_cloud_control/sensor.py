@@ -191,6 +191,8 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
             # Case 4: fallback — use cached schedules
             if hasattr(self.coordinator.client, "_last_schedules"):
                 schedules = getattr(self.coordinator.client, "_last_schedules")
+            elif data_root.get("schedules_raw"):
+                schedules = data_root.get("schedules_raw")
             else:
                 # Schedule a background safe fetch
                 self.coordinator.hass.async_create_task(self._async_fetch_schedules_safe())

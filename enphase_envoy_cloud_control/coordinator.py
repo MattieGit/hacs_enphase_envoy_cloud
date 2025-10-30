@@ -60,9 +60,47 @@ class EnphaseCoordinator(DataUpdateCoordinator):
             # outside of the coordinator data structure (legacy behaviour).
             setattr(self.client, "_last_schedules", schedules)
 
+            # Normalise schedule payload to the inner "data" block when present.
+            schedule_block = schedules.get("data") if isinstance(schedules, dict) else None
+            if not schedule_block:
+                schedule_block = schedules if isinstance(schedules, dict) else {}
+
+            inner_data = battery_data.get("data", battery_data)
+
+            # Merge concrete schedule details (start/end, limit, etc.) into the
+            # cfg/dtg/rbd control blocks so entities always read fresh values.
+            if isinstance(inner_data, dict) and isinstance(schedule_block, dict):
+                for mode in ("cfg", "dtg", "rbd"):
+                    details = schedule_block.get(mode)
+                    if not isinstance(details, dict):
+                        continue
+                    detail_list = details.get("details")
+                    if not isinstance(detail_list, list):
+                        continue
+
+                    control_key = f"{mode}Control"
+                    control = inner_data.get(control_key)
+                    if not isinstance(control, dict):
+                        continue
+                    schedules_list = control.get("schedules")
+                    if not isinstance(schedules_list, list):
+                        continue
+
+                    merged_schedules = []
+                    for idx, sched in enumerate(schedules_list):
+                        merged_sched = dict(sched) if isinstance(sched, dict) else {}
+                        detail = detail_list[idx] if idx < len(detail_list) else None
+                        if isinstance(detail, dict):
+                            for key in ("startTime", "endTime", "scheduleId", "limit", "days"):
+                                if detail.get(key) is not None:
+                                    merged_sched[key] = detail[key]
+                        merged_schedules.append(merged_sched)
+                    control["schedules"] = merged_schedules
+
             merged = {
-                "data": battery_data.get("data", battery_data),
-                "schedules": schedules.get("data", schedules),
+                "data": inner_data,
+                "schedules": schedule_block,
+                "schedules_raw": schedules,
             }
             _LOGGER.debug("[Enphase] Data fetch complete. Keys: %s", list(merged.keys()))
             return merged
@@ -73,4 +111,4 @@ class EnphaseCoordinator(DataUpdateCoordinator):
     async def async_force_refresh(self):
         """Manually triggered refresh (Force Cloud Refresh button)."""
         _LOGGER.info("[Enphase] Manual cloud refresh requested.")
-        await self.async_refresh()
+        await self.async_request_refresh()
