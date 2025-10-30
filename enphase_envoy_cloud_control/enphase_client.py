@@ -272,7 +272,15 @@ class EnphaseClient:
         r.raise_for_status()
         return r.json()
 
-    def add_schedule(self, schedule_type, start_time, end_time, limit, days):
+    def add_schedule(
+        self,
+        schedule_type,
+        start_time,
+        end_time,
+        limit,
+        days,
+        timezone="UTC",
+    ):
         """Add a new schedule entry (mirrors your REST command)."""
         jwt, xsrf = self._ensure_tokens()
         url = (
@@ -289,7 +297,7 @@ class EnphaseClient:
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
         }
         payload = {
-            "timezone": "Europe/London",
+            "timezone": timezone or "UTC",
             "startTime": start_time[:5],
             "endTime": end_time[:5],
             "limit": int(limit),
