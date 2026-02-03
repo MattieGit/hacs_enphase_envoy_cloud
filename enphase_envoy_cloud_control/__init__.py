@@ -48,7 +48,10 @@ ADD_SCHEDULE_SCHEMA = vol.Schema(
 DELETE_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
-        vol.Required("schedule_id"): vol.All(cv.string, vol.Match(r"^\d+$")),
+        vol.Optional("schedule_id"): vol.All(cv.string, vol.Match(r"^\d+$")),
+        vol.Optional("schedule_ids"): vol.All(
+            cv.ensure_list, [vol.All(cv.string, vol.Match(r"^\d+$"))]
+        ),
         vol.Required("confirm"): cv.boolean,
     }
 )
@@ -271,7 +274,13 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def async_delete_schedule_service(call: ServiceCall) -> None:
         coordinator = _get_coordinator_from_call(hass, call)
-        schedule_id = call.data["schedule_id"].strip()
+        schedule_ids: list[str] = []
+        if call.data.get("schedule_ids"):
+            schedule_ids = [str(val).strip() for val in call.data["schedule_ids"]]
+        elif call.data.get("schedule_id"):
+            schedule_ids = [call.data["schedule_id"].strip()]
+        else:
+            raise HomeAssistantError("Provide schedule_id or schedule_ids to delete.")
         confirm = call.data.get("confirm")
         if not confirm:
             raise HomeAssistantError("Confirmation required to delete a schedule.")
@@ -283,21 +292,28 @@ def _register_services(hass: HomeAssistant) -> None:
             if sched.get("scheduleId") is not None
         }
 
-        if known_ids and schedule_id not in known_ids:
-            raise HomeAssistantError("Schedule ID not found in current data.")
+        if known_ids:
+            unknown_ids = [sched_id for sched_id in schedule_ids if sched_id not in known_ids]
+            if unknown_ids:
+                raise HomeAssistantError(
+                    f"Schedule ID(s) not found in current data: {', '.join(unknown_ids)}"
+                )
 
-        try:
-            await hass.async_add_executor_job(
-                coordinator.client.delete_schedule, schedule_id
-            )
-        except Exception as exc:
-            _LOGGER.error("[Enphase] Failed to delete schedule %s: %s", schedule_id, exc)
-            raise HomeAssistantError(f"Failed to delete schedule: {exc}") from exc
+        for schedule_id in schedule_ids:
+            try:
+                await hass.async_add_executor_job(
+                    coordinator.client.delete_schedule, schedule_id
+                )
+            except Exception as exc:
+                _LOGGER.error("[Enphase] Failed to delete schedule %s: %s", schedule_id, exc)
+                raise HomeAssistantError(
+                    f"Failed to delete schedule {schedule_id}: {exc}"
+                ) from exc
 
         if "persistent_notification" in hass.config.components:
             persistent_notification.async_create(
                 hass,
-                f"🗑️ Schedule {schedule_id} deleted successfully.",
+                f"🗑️ Schedule(s) deleted successfully: {', '.join(schedule_ids)}.",
                 title="Enphase Envoy Cloud Control",
                 notification_id=f"{DOMAIN}_schedule_delete",
             )

@@ -156,7 +156,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 payload = {
                     "config_entry_id": self.config_entry.entry_id,
-                    "schedule_id": user_input["schedule_id"],
+                    "schedule_ids": user_input["schedule_ids"],
                     "confirm": True,
                 }
                 try:
@@ -180,13 +180,13 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
                     )
 
         schedule_selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(options=options)
+            selector.SelectSelectorConfig(options=options, multiple=True)
         )
         confirm_selector = selector.BooleanSelector()
 
         schema = vol.Schema(
             {
-                vol.Required("schedule_id"): schedule_selector,
+                vol.Required("schedule_ids"): schedule_selector,
                 vol.Required("confirm", default=False): confirm_selector,
             }
         )
