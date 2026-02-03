@@ -112,3 +112,20 @@ class EnphaseCoordinator(DataUpdateCoordinator):
         """Manually triggered refresh (Force Cloud Refresh button)."""
         _LOGGER.info("[Enphase] Manual cloud refresh requested.")
         await self.async_request_refresh()
+
+    async def async_initialize_auth(self) -> None:
+        """Ensure authentication is ready and persist discovered IDs."""
+        ids = await self.hass.async_add_executor_job(self.client.ensure_authenticated)
+        if not ids:
+            return
+
+        updated = dict(self.entry.data)
+        changed = False
+        for key in ("user_id", "battery_id"):
+            value = ids.get(key)
+            if value and not updated.get(key):
+                updated[key] = value
+                changed = True
+
+        if changed:
+            self.hass.config_entries.async_update_entry(self.entry, data=updated)
