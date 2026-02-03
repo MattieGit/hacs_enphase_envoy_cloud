@@ -157,6 +157,12 @@ class EnphaseClient:
                 self.xsrf_token = match.group(1)
         if not self.xsrf_token:
             raise AuthError("Failed to retrieve XSRF token.")
+        SESSION.cookies.set(
+            "BP-XSRF-Token",
+            self.xsrf_token,
+            domain="enlighten.enphaseenergy.com",
+            path="/",
+        )
         _LOGGER.debug("[Enphase] XSRF token updated.")
 
     def _ensure_tokens(self, force_refresh=False):
@@ -285,7 +291,6 @@ class EnphaseClient:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
-            headers["cookie"] = f"BP-XSRF-Token={xsrf}"
             r = SESSION.get(url, headers=headers, timeout=30)
         r.raise_for_status()
         _LOGGER.debug("[Enphase] Battery settings fetched.")
@@ -315,9 +320,9 @@ class EnphaseClient:
             "e-auth-token": jwt,
             "x-xsrf-token": xsrf,
             "username": str(self.user_id),
-            "cookie": f"BP-XSRF-Token={xsrf}",
             "origin": "https://battery-profile-ui.enphaseenergy.com",
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "cookie": f"BP-XSRF-Token={xsrf}",
         }
 
         # Payload mapping for each mode type
@@ -349,7 +354,6 @@ class EnphaseClient:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
-            headers["cookie"] = f"BP-XSRF-Token={xsrf}"
             r = SESSION.put(url, json=payload, headers=headers, timeout=30)
 
         if not r.ok:
@@ -375,9 +379,9 @@ class EnphaseClient:
             "e-auth-token": jwt,
             "x-xsrf-token": xsrf,
             "username": str(self.user_id),
-            "cookie": f"BP-XSRF-Token={xsrf}",
             "origin": "https://battery-profile-ui.enphaseenergy.com",
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "cookie": f"BP-XSRF-Token={xsrf}",
         }
         r = SESSION.get(url, headers=headers, timeout=30)
         if r.status_code == 403:
@@ -385,7 +389,6 @@ class EnphaseClient:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
-            headers["cookie"] = f"BP-XSRF-Token={xsrf}"
             r = SESSION.get(url, headers=headers, timeout=30)
         r.raise_for_status()
         return r.json()
@@ -410,9 +413,9 @@ class EnphaseClient:
             "e-auth-token": jwt,
             "x-xsrf-token": xsrf,
             "username": str(self.user_id),
-            "cookie": f"BP-XSRF-Token={xsrf}",
             "origin": "https://battery-profile-ui.enphaseenergy.com",
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "cookie": f"BP-XSRF-Token={xsrf}",
         }
         payload = {
             "timezone": timezone or "UTC",
@@ -428,7 +431,6 @@ class EnphaseClient:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
-            headers["cookie"] = f"BP-XSRF-Token={xsrf}"
             r = SESSION.post(url, json=payload, headers=headers, timeout=30)
         r.raise_for_status()
         _LOGGER.info("[Enphase] Schedule added successfully.")
@@ -442,13 +444,16 @@ class EnphaseClient:
             f"battery/sites/{self.battery_id}/schedules/{schedule_id}/delete"
         )
         headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
             "content-type": "application/json",
             "e-auth-token": jwt,
             "x-xsrf-token": xsrf,
             "username": str(self.user_id),
-            "cookie": f"BP-XSRF-Token={xsrf}",
             "origin": "https://battery-profile-ui.enphaseenergy.com",
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "cookie": f"locale=en; BP-XSRF-Token={xsrf};",
+            "user-agent": "curl/8.14.1",
         }
         _LOGGER.info("[Enphase] Deleting schedule ID %s", schedule_id)
         r = SESSION.post(url, json={}, headers=headers, timeout=30)
@@ -456,7 +461,6 @@ class EnphaseClient:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
-            headers["cookie"] = f"BP-XSRF-Token={xsrf}"
             r = SESSION.post(url, json={}, headers=headers, timeout=30)
         r.raise_for_status()
         _LOGGER.info("[Enphase] Schedule %s deleted successfully.", schedule_id)
@@ -477,9 +481,9 @@ class EnphaseClient:
             "e-auth-token": jwt,
             "x-xsrf-token": xsrf,
             "username": str(self.user_id),
-            "cookie": f"BP-XSRF-Token={xsrf}",
             "origin": "https://battery-profile-ui.enphaseenergy.com",
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "cookie": f"BP-XSRF-Token={xsrf}",
         }
         r = SESSION.post(url, json=payload, headers=headers, timeout=30)
         r.raise_for_status()
