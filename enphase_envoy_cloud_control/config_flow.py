@@ -23,23 +23,30 @@ class EnphaseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Basic validation
             if not user_input.get("email") or not user_input.get("password"):
                 errors["base"] = "missing_credentials"
-            elif not user_input.get("user_id") or not user_input.get("battery_id"):
-                errors["base"] = "missing_ids"
             else:
-                await self.async_set_unique_id(user_input["email"])
-                self._abort_if_unique_id_configured()
-                _LOGGER.info(
-                    "[Enphase] Creating new config entry for %s",
-                    user_input["email"],
-                )
-                return self.async_create_entry(title="Enphase Envoy Cloud Control", data=user_input)
+                user_id = user_input.get("user_id")
+                battery_id = user_input.get("battery_id")
+                if user_id and not user_id.isdigit():
+                    errors["base"] = "invalid_user_id"
+                elif battery_id and not battery_id.isdigit():
+                    errors["base"] = "invalid_battery_id"
+                else:
+                    await self.async_set_unique_id(user_input["email"])
+                    self._abort_if_unique_id_configured()
+                    _LOGGER.info(
+                        "[Enphase] Creating new config entry for %s",
+                        user_input["email"],
+                    )
+                    return self.async_create_entry(
+                        title="Enphase Envoy Cloud Control", data=user_input
+                    )
 
         data_schema = vol.Schema(
             {
                 vol.Required("email"): str,
                 vol.Required("password"): str,
-                vol.Required("user_id"): str,
-                vol.Required("battery_id"): str,
+                vol.Optional("user_id"): str,
+                vol.Optional("battery_id"): str,
             }
         )
 
