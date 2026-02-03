@@ -45,12 +45,14 @@ ADD_SCHEDULE_SCHEMA = vol.Schema(
     }
 )
 
+_SCHEDULE_ID_REGEX = r"^[0-9a-fA-F-]{6,}$"
+
 DELETE_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
-        vol.Optional("schedule_id"): vol.All(cv.string, vol.Match(r"^\d+$")),
+        vol.Optional("schedule_id"): vol.All(cv.string, vol.Match(_SCHEDULE_ID_REGEX)),
         vol.Optional("schedule_ids"): vol.All(
-            cv.ensure_list, [vol.All(cv.string, vol.Match(r"^\d+$"))]
+            cv.ensure_list, [vol.All(cv.string, vol.Match(_SCHEDULE_ID_REGEX))]
         ),
         vol.Required("confirm"): cv.boolean,
     }

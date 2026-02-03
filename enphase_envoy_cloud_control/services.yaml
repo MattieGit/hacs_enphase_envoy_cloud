@@ -72,13 +72,13 @@ delete_schedule:
   fields:
     schedule_id:
       name: "Schedule ID"
-      description: "Enter a single numeric scheduleId shown in the schedule sensor."
+      description: "Enter a single scheduleId (UUID) shown in the schedule sensor."
       required: false
       selector:
         text:
     schedule_ids:
       name: "Schedule IDs"
-      description: "Provide one or more numeric scheduleIds (list) to delete."
+      description: "Provide one or more scheduleIds (UUIDs) to delete."
       required: false
       selector:
         text:
