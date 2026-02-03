@@ -251,14 +251,15 @@ def _register_services(hass: HomeAssistant) -> None:
                 f"Schedule added but failed to apply {schedule_type.upper()} settings: {exc}"
             ) from exc
 
-        hass.components.persistent_notification.async_create(
+        if "persistent_notification" in hass.config.components:
+            hass.components.persistent_notification.async_create(
             (
                 "✅ Schedule added successfully for "
                 f"{schedule_type.upper()} ({start_str}–{end_str})."
             ),
             title="Enphase Envoy Cloud Control",
             notification_id=f"{DOMAIN}_schedule_add",
-        )
+            )
 
         async_call_later(
             hass,
@@ -291,11 +292,12 @@ def _register_services(hass: HomeAssistant) -> None:
             _LOGGER.error("[Enphase] Failed to delete schedule %s: %s", schedule_id, exc)
             raise HomeAssistantError(f"Failed to delete schedule: {exc}") from exc
 
-        hass.components.persistent_notification.async_create(
-            f"🗑️ Schedule {schedule_id} deleted successfully.",
-            title="Enphase Envoy Cloud Control",
-            notification_id=f"{DOMAIN}_schedule_delete",
-        )
+        if "persistent_notification" in hass.config.components:
+            hass.components.persistent_notification.async_create(
+                f"🗑️ Schedule {schedule_id} deleted successfully.",
+                title="Enphase Envoy Cloud Control",
+                notification_id=f"{DOMAIN}_schedule_delete",
+            )
 
         async_call_later(
             hass,
@@ -326,11 +328,12 @@ def _register_services(hass: HomeAssistant) -> None:
             elif detail:
                 message = f"✅ Schedule valid: {detail}"
 
-        hass.components.persistent_notification.async_create(
-            message,
-            title="Enphase Envoy Cloud Control",
-            notification_id=f"{DOMAIN}_schedule_validate",
-        )
+        if "persistent_notification" in hass.config.components:
+            hass.components.persistent_notification.async_create(
+                message,
+                title="Enphase Envoy Cloud Control",
+                notification_id=f"{DOMAIN}_schedule_validate",
+            )
 
     hass.services.async_register(
         DOMAIN,
