@@ -403,6 +403,7 @@ class EnphaseClient:
         timezone="UTC",
     ):
         """Add a new schedule entry (mirrors your REST command)."""
+        schedule_type = str(schedule_type).upper()
         jwt, xsrf = self._ensure_tokens()
         url = (
             f"https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
@@ -499,13 +500,14 @@ class EnphaseClient:
 
     def validate_schedule(self, schedule_type="dtg", force_opted=False):
         """Validate schedule feasibility (isValid endpoint)."""
+        schedule_type = str(schedule_type).upper()
         jwt, xsrf = self._ensure_tokens()
         url = (
             f"https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
             f"battery/sites/{self.battery_id}/schedules/isValid"
         )
         payload = {"scheduleType": schedule_type}
-        if schedule_type == "cfg" and force_opted:
+        if schedule_type == "CFG" and force_opted:
             payload["forceScheduleOpted"] = True
         headers = {
             "content-type": "application/json",
