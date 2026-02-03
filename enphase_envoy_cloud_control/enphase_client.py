@@ -426,12 +426,28 @@ class EnphaseClient:
             "days": [int(d) for d in days],
         }
         _LOGGER.info("[Enphase] Adding schedule: %s", payload)
+        _LOGGER.debug(
+            "[Enphase] add_schedule request: url=%s headers=%s payload=%s",
+            url,
+            {k: v for k, v in headers.items() if k != "e-auth-token"},
+            payload,
+        )
         r = SESSION.post(url, json=payload, headers=headers, timeout=30)
+        _LOGGER.debug(
+            "[Enphase] add_schedule response: status=%s body=%s",
+            r.status_code,
+            r.text,
+        )
         if r.status_code == 403:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
             r = SESSION.post(url, json=payload, headers=headers, timeout=30)
+            _LOGGER.debug(
+                "[Enphase] add_schedule retry response: status=%s body=%s",
+                r.status_code,
+                r.text,
+            )
         r.raise_for_status()
         _LOGGER.info("[Enphase] Schedule added successfully.")
         return r.json()
@@ -456,12 +472,27 @@ class EnphaseClient:
             "user-agent": "curl/8.14.1",
         }
         _LOGGER.info("[Enphase] Deleting schedule ID %s", schedule_id)
+        _LOGGER.debug(
+            "[Enphase] delete_schedule request: url=%s headers=%s",
+            url,
+            {k: v for k, v in headers.items() if k != "e-auth-token"},
+        )
         r = SESSION.post(url, json={}, headers=headers, timeout=30)
+        _LOGGER.debug(
+            "[Enphase] delete_schedule response: status=%s body=%s",
+            r.status_code,
+            r.text,
+        )
         if r.status_code == 403:
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
             r = SESSION.post(url, json={}, headers=headers, timeout=30)
+            _LOGGER.debug(
+                "[Enphase] delete_schedule retry response: status=%s body=%s",
+                r.status_code,
+                r.text,
+            )
         r.raise_for_status()
         _LOGGER.info("[Enphase] Schedule %s deleted successfully.", schedule_id)
         return True
@@ -485,7 +516,18 @@ class EnphaseClient:
             "referer": "https://battery-profile-ui.enphaseenergy.com/",
             "cookie": f"BP-XSRF-Token={xsrf}",
         }
+        _LOGGER.debug(
+            "[Enphase] validate_schedule request: url=%s headers=%s payload=%s",
+            url,
+            {k: v for k, v in headers.items() if k != "e-auth-token"},
+            payload,
+        )
         r = SESSION.post(url, json=payload, headers=headers, timeout=30)
+        _LOGGER.debug(
+            "[Enphase] validate_schedule response: status=%s body=%s",
+            r.status_code,
+            r.text,
+        )
         r.raise_for_status()
         return r.json()
 
