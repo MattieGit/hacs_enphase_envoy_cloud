@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any
@@ -229,6 +230,26 @@ def _register_services(hass: HomeAssistant) -> None:
         except Exception as exc:
             _LOGGER.error("[Enphase] Failed to add schedule: %s", exc)
             raise HomeAssistantError(f"Failed to add schedule: {exc}") from exc
+
+        await asyncio.sleep(2)
+
+        try:
+            await hass.async_add_executor_job(
+                coordinator.client.set_mode,
+                schedule_type,
+                True,
+                start_str if schedule_type == "dtg" else None,
+                end_str if schedule_type == "dtg" else None,
+            )
+        except Exception as exc:
+            _LOGGER.error(
+                "[Enphase] Schedule added but failed to apply %s settings: %s",
+                schedule_type,
+                exc,
+            )
+            raise HomeAssistantError(
+                f"Schedule added but failed to apply {schedule_type.upper()} settings: {exc}"
+            ) from exc
 
         hass.components.persistent_notification.async_create(
             (

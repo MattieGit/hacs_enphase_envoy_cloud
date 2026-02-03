@@ -300,7 +300,7 @@ class EnphaseClient:
     # ACTIONS (toggles)
     # -------------------------------------------------------------------------
 
-    def set_mode(self, mode: str, enable: bool):
+    def set_mode(self, mode: str, enable: bool, start_time: str | None = None, end_time: str | None = None):
         """
         Toggle Enphase battery control modes via the cloud API.
 
@@ -338,6 +338,9 @@ class EnphaseClient:
                     "scheduleSupported": True,
                 }
             }
+            if start_time and end_time:
+                payload["dtgControl"]["startTime"] = start_time[:5]
+                payload["dtgControl"]["endTime"] = end_time[:5]
         elif short_mode == "rbd":
             payload = {"rbdControl": {"enabled": enable}}
         else:
@@ -348,13 +351,29 @@ class EnphaseClient:
             f"batterySettings/{self.battery_id}?userId={self.user_id}&source=enho"
         )
 
+        _LOGGER.debug(
+            "[Enphase] set_mode request: url=%s headers=%s payload=%s",
+            url,
+            {k: v for k, v in headers.items() if k != "e-auth-token"},
+            payload,
+        )
         r = SESSION.put(url, json=payload, headers=headers, timeout=30)
+        _LOGGER.debug(
+            "[Enphase] set_mode response: status=%s body=%s",
+            r.status_code,
+            r.text,
+        )
         if r.status_code == 403:
             _LOGGER.warning("[Enphase] 403 Forbidden on set_mode(%s) – refreshing XSRF and retrying", short_mode)
             jwt, xsrf = self._ensure_tokens(force_refresh=True)
             headers["e-auth-token"] = jwt
             headers["x-xsrf-token"] = xsrf
             r = SESSION.put(url, json=payload, headers=headers, timeout=30)
+            _LOGGER.debug(
+                "[Enphase] set_mode retry response: status=%s body=%s",
+                r.status_code,
+                r.text,
+            )
 
         if not r.ok:
             _LOGGER.error("[Enphase] set_mode(%s) failed: %s %s", short_mode, r.status_code, r.text)
