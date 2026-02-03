@@ -40,6 +40,48 @@ class EnphaseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("password"): str,
             }
         )
+        if user_input is not None:
+            # Basic validation
+            if not user_input.get("email") or not user_input.get("password"):
+                errors["base"] = "missing_credentials"
+            else:
+                await self.async_set_unique_id(user_input["email"])
+                self._abort_if_unique_id_configured()
+                _LOGGER.info(
+                    "[Enphase] Creating new config entry for %s",
+                    user_input["email"],
+                )
+                return self.async_create_entry(
+                    title="Enphase Envoy Cloud Control", data=user_input
+                )
+
+        data_schema = vol.Schema(
+            {
+                vol.Required("email"): str,
+                vol.Required("password"): str,
+            }
+        )
+        if user_input is not None:
+            # Basic validation
+            if not user_input.get("email") or not user_input.get("password"):
+                errors["base"] = "missing_credentials"
+            else:
+                await self.async_set_unique_id(user_input["email"])
+                self._abort_if_unique_id_configured()
+                _LOGGER.info(
+                    "[Enphase] Creating new config entry for %s",
+                    user_input["email"],
+                )
+                return self.async_create_entry(
+                    title="Enphase Envoy Cloud Control", data=user_input
+                )
+
+        data_schema = vol.Schema(
+            {
+                vol.Required("email"): str,
+                vol.Required("password"): str,
+            }
+        )
 
         return self.async_show_form(
             step_id="user", data_schema=data_schema, errors=errors
