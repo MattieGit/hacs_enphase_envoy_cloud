@@ -10,7 +10,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.components import persistent_notification
+from homeassistant.core import HomeAssistant, ServiceCall 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.event import async_call_later
@@ -252,7 +253,7 @@ def _register_services(hass: HomeAssistant) -> None:
             ) from exc
 
         if "persistent_notification" in hass.config.components:
-            hass.components.persistent_notification.async_create(
+            persistent_notification.async_create(
             (
                 "✅ Schedule added successfully for "
                 f"{schedule_type.upper()} ({start_str}–{end_str})."
@@ -293,7 +294,7 @@ def _register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(f"Failed to delete schedule: {exc}") from exc
 
         if "persistent_notification" in hass.config.components:
-            hass.components.persistent_notification.async_create(
+            persistent_notification.async_create(
                 f"🗑️ Schedule {schedule_id} deleted successfully.",
                 title="Enphase Envoy Cloud Control",
                 notification_id=f"{DOMAIN}_schedule_delete",
@@ -329,7 +330,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 message = f"✅ Schedule valid: {detail}"
 
         if "persistent_notification" in hass.config.components:
-            hass.components.persistent_notification.async_create(
+            persistent_notification.async_create(
                 message,
                 title="Enphase Envoy Cloud Control",
                 notification_id=f"{DOMAIN}_schedule_validate",
