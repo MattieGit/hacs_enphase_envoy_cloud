@@ -32,7 +32,7 @@ FORCE_REFRESH_SCHEMA = vol.Schema({vol.Optional("config_entry_id"): cv.string})
 ADD_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
-        vol.Required("schedule_type"): vol.In(["cfg", "dtg", "rbd"]),
+        vol.Required("schedule_type"): vol.All(cv.string, vol.Lower, vol.In(["cfg", "dtg", "rbd"])),
         vol.Required("start_time"): cv.time,
         vol.Required("end_time"): cv.time,
         vol.Required("limit"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
@@ -54,7 +54,7 @@ DELETE_SCHEDULE_SCHEMA = vol.Schema(
 VALIDATE_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
-        vol.Required("schedule_type"): vol.In(["cfg", "dtg", "rbd"]),
+        vol.Required("schedule_type"): vol.All(cv.string, vol.Lower, vol.In(["cfg", "dtg", "rbd"])),
     }
 )
 
@@ -185,7 +185,7 @@ def _register_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator_from_call(hass, call)
         data = call.data
 
-        schedule_type: str = data["schedule_type"]
+        schedule_type: str = str(data["schedule_type"]).lower()
         start_time = data["start_time"]
         end_time = data["end_time"]
         limit = int(data["limit"])
@@ -203,7 +203,9 @@ def _register_services(hass: HomeAssistant) -> None:
 
         try:
             validation = await hass.async_add_executor_job(
-                coordinator.client.validate_schedule, schedule_type
+                coordinator.client.validate_schedule,
+                schedule_type,
+                schedule_type == "cfg",
             )
         except Exception as exc:
             _LOGGER.error("[Enphase] Schedule validation failed: %s", exc)
@@ -282,11 +284,13 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def async_validate_schedule_service(call: ServiceCall) -> None:
         coordinator = _get_coordinator_from_call(hass, call)
-        schedule_type = call.data["schedule_type"]
+        schedule_type = str(call.data["schedule_type"]).lower()
 
         try:
             result = await hass.async_add_executor_job(
-                coordinator.client.validate_schedule, schedule_type
+                coordinator.client.validate_schedule,
+                schedule_type,
+                schedule_type == "cfg",
             )
         except Exception as exc:
             _LOGGER.error("[Enphase] Validation check failed: %s", exc)
