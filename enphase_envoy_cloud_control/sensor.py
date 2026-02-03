@@ -123,9 +123,14 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
         scheds = self._schedules()
         if not scheds:
             return "None"
-        return ", ".join(
-            f"{s.get('startTime','??')}–{s.get('endTime','??')}" for s in scheds
-        )
+        state_parts = []
+        for sched in scheds:
+            start = sched.get("startTime", "??")
+            end = sched.get("endTime", "??")
+            schedule_id = sched.get("scheduleId")
+            label = f"#{schedule_id} " if schedule_id is not None else ""
+            state_parts.append(f"{label}{start}–{end}")
+        return ", ".join(state_parts)
 
     @property
     def extra_state_attributes(self):
@@ -137,6 +142,9 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
             t = self.coordinator.last_update_success_time
             if isinstance(t, datetime):
                 attrs["last_successful_poll"] = t.strftime("%Y-%m-%dT%H:%M:%S%z")
+        sched_ids = [s.get("scheduleId") for s in attrs["schedules"] if s.get("scheduleId")]
+        if sched_ids:
+            attrs["schedule_ids"] = sched_ids
         return attrs
 
     # ---------------------------------------------------------------------

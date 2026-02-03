@@ -1,13 +1,10 @@
-"""
-Constants for Enphase Envoy Cloud Control integration.
-Version: 1.5.2
-"""
+"""Constants for Enphase Envoy Cloud Control integration."""
 
 import logging
 
 DOMAIN = "enphase_envoy_cloud_control"
 NAME = "Enphase Envoy Cloud Control"
-VERSION = "1.5.2"
+VERSION = "1.6.0"
 
 # Common Enphase API URLs
 BASE_URL = "https://enlighten.enphaseenergy.com"

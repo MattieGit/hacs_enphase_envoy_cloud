@@ -1,7 +1,7 @@
 {
   "domain": "enphase_envoy_cloud_control",
   "name": "Enphase Envoy Cloud Control",
-  "version": "1.3.8",
+  "version": "1.6.0",
   "documentation": "https://github.com/chinedu40/enphase_HA_REST_API",
   "dependencies": [],
   "codeowners": ["@chinedu40"],
