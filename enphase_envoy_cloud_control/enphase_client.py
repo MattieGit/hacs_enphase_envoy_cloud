@@ -339,8 +339,8 @@ class EnphaseClient:
                 }
             }
             if start_time and end_time:
-                payload["dtgControl"]["startTime"] = start_time[:5]
-                payload["dtgControl"]["endTime"] = end_time[:5]
+                payload["dtgControl"]["startTime"] = self._time_to_minutes(start_time)
+                payload["dtgControl"]["endTime"] = self._time_to_minutes(end_time)
         elif short_mode == "rbd":
             payload = {"rbdControl": {"enabled": enable}}
         else:
@@ -559,3 +559,14 @@ class EnphaseClient:
     def _now_iso(self):
         """Return current UTC time in ISO format (milliseconds precision)."""
         return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+    def _time_to_minutes(self, time_value: str | int) -> int:
+        """Convert HH:MM strings into minutes since midnight."""
+        if isinstance(time_value, int):
+            return time_value
+        match = re.match(r"^(\d{1,2}):(\d{2})$", str(time_value).strip())
+        if not match:
+            raise ValueError(f"Invalid time value: {time_value}")
+        hours = int(match.group(1))
+        minutes = int(match.group(2))
+        return hours * 60 + minutes
