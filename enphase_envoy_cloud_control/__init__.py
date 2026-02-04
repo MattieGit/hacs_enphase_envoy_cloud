@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import timedelta
 from typing import Any
 
@@ -50,10 +51,8 @@ _SCHEDULE_ID_REGEX = r"^[0-9a-fA-F-]{6,}$"
 DELETE_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
-        vol.Optional("schedule_id"): vol.All(cv.string, vol.Match(_SCHEDULE_ID_REGEX)),
-        vol.Optional("schedule_ids"): vol.All(
-            cv.ensure_list, [vol.All(cv.string, vol.Match(_SCHEDULE_ID_REGEX))]
-        ),
+        vol.Optional("schedule_id"): cv.string,
+        vol.Optional("schedule_ids"): cv.ensure_list,
         vol.Required("confirm"): cv.boolean,
     }
 )
@@ -278,11 +277,26 @@ def _register_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator_from_call(hass, call)
         schedule_ids: list[str] = []
         if call.data.get("schedule_ids"):
-            schedule_ids = [str(val).strip() for val in call.data["schedule_ids"]]
+            raw = call.data["schedule_ids"]
+            if isinstance(raw, str):
+                schedule_ids = [val.strip() for val in raw.split(",")]
+            else:
+                schedule_ids = [str(val).strip() for val in raw]
         elif call.data.get("schedule_id"):
             schedule_ids = [call.data["schedule_id"].strip()]
         else:
             raise HomeAssistantError("Provide schedule_id or schedule_ids to delete.")
+
+        schedule_ids = [sched_id for sched_id in schedule_ids if sched_id]
+        if not schedule_ids:
+            raise HomeAssistantError("Provide at least one schedule ID to delete.")
+
+        schedule_id_pattern = re.compile(_SCHEDULE_ID_REGEX)
+        invalid_ids = [sched_id for sched_id in schedule_ids if not schedule_id_pattern.match(sched_id)]
+        if invalid_ids:
+            raise HomeAssistantError(
+                f"Invalid schedule ID(s): {', '.join(invalid_ids)}"
+            )
         confirm = call.data.get("confirm")
         if not confirm:
             raise HomeAssistantError("Confirmation required to delete a schedule.")
