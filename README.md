@@ -31,8 +31,7 @@ This mirrors the Enlighten scheduling workflow, but uses standard Home Assistant
 ## Requirements
 
 - Home Assistant with the ability to install custom integrations
-- Your Enphase Enlighten / Battery Profile UI credentials (or whatever auth flow you’ve configured)
-- Valid auth token / XSRF token acquisition in your setup (as required by Enlighten endpoints)
+- Your Enphase Enlighten credentials (username and password) 
 
 ---
 
