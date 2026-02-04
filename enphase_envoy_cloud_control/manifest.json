@@ -1,8 +1,8 @@
 {
   "domain": "enphase_envoy_cloud_control",
   "name": "Enphase Envoy Cloud Control",
-  "version": "1.6.0",
-  "documentation": "https://github.com/chinedu40/enphase_HA_REST_API",
+  "version": "0.1",
+  "documentation": "https://github.com/chinedu40/hacs_enphase_envoy_cloud",
   "dependencies": [],
   "codeowners": ["@chinedu40"],
   "iot_class": "cloud_polling",
