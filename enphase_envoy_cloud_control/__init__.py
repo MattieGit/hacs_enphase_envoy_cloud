@@ -19,14 +19,16 @@ from homeassistant.helpers.event import async_call_later
 
 from .const import DEFAULT_POLL_INTERVAL, DOMAIN
 from .coordinator import EnphaseCoordinator
+from .editor import default_editor_state, default_new_editor_state
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "switch", "button"]
+PLATFORMS = ["sensor", "switch", "button", "select", "time", "number"]
 SERVICES_REGISTERED = "_services_registered"
 
 SERVICE_FORCE_REFRESH = "force_refresh"
 SERVICE_ADD_SCHEDULE = "add_schedule"
+SERVICE_UPDATE_SCHEDULE = "update_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
 SERVICE_VALIDATE_SCHEDULE = "validate_schedule"
 
@@ -43,6 +45,22 @@ ADD_SCHEDULE_SCHEMA = vol.Schema(
             cv.ensure_list,
             [vol.All(vol.Coerce(int), vol.Range(min=1, max=7))],
         ),
+    }
+)
+
+UPDATE_SCHEDULE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("config_entry_id"): cv.string,
+        vol.Required("schedule_id"): cv.string,
+        vol.Required("schedule_type"): vol.All(cv.string, vol.Lower, vol.In(["cfg", "dtg", "rbd"])),
+        vol.Required("start_time"): cv.time,
+        vol.Required("end_time"): cv.time,
+        vol.Required("limit"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Required("days"): vol.All(
+            cv.ensure_list,
+            [vol.All(vol.Coerce(int), vol.Range(min=1, max=7))],
+        ),
+        vol.Required("confirm"): cv.boolean,
     }
 )
 
@@ -96,7 +114,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = EnphaseCoordinator(hass, entry)
     domain_data = hass.data.setdefault(DOMAIN, {})
-    domain_data[entry.entry_id] = coordinator
+    domain_data[entry.entry_id] = {
+        "coordinator": coordinator,
+        "editor": default_editor_state(),
+        "new_editor": default_new_editor_state(),
+    }
 
     if not domain_data.get(SERVICES_REGISTERED):
         _register_services(hass)
@@ -128,6 +150,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             for service in (
                 SERVICE_FORCE_REFRESH,
                 SERVICE_ADD_SCHEDULE,
+                SERVICE_UPDATE_SCHEDULE,
                 SERVICE_DELETE_SCHEDULE,
                 SERVICE_VALIDATE_SCHEDULE,
             ):
@@ -140,7 +163,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def _async_handle_options_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Apply updated options (e.g. polling interval) to the coordinator."""
-    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    coordinator = entry_data.get("coordinator") if isinstance(entry_data, dict) else None
     if not coordinator:
         _LOGGER.debug("[Enphase] Options updated but coordinator not initialised yet.")
         return
@@ -165,9 +189,9 @@ async def _async_handle_options_update(hass: HomeAssistant, entry: ConfigEntry) 
 def _coordinators(domain_data: dict[str, Any]) -> dict[str, EnphaseCoordinator]:
     """Return mapping of active coordinators only."""
     return {
-        entry_id: coord
-        for entry_id, coord in domain_data.items()
-        if isinstance(coord, EnphaseCoordinator)
+        entry_id: data["coordinator"]
+        for entry_id, data in domain_data.items()
+        if isinstance(data, dict) and isinstance(data.get("coordinator"), EnphaseCoordinator)
     }
 
 
@@ -291,6 +315,93 @@ def _register_services(hass: HomeAssistant) -> None:
             title="Enphase Envoy Cloud Control",
             notification_id=f"{DOMAIN}_schedule_add",
             )
+
+        async_call_later(
+            hass,
+            5,
+            lambda _: _schedule_post_action_refresh(hass, coordinator),
+        )
+
+    async def async_update_schedule_service(call: ServiceCall) -> None:
+        coordinator = _get_coordinator_from_call(hass, call)
+        data = call.data
+
+        if not data.get("confirm"):
+            raise HomeAssistantError("Confirmation required to update a schedule.")
+
+        schedule_id = str(data["schedule_id"])
+        schedule_type: str = str(data["schedule_type"]).lower()
+        start_str = data["start_time"].strftime("%H:%M")
+        end_str = data["end_time"].strftime("%H:%M")
+        limit = int(data["limit"])
+        days = sorted({int(day) for day in cv.ensure_list(data["days"])})
+
+        if start_str == end_str:
+            raise HomeAssistantError("Start time and end time must differ for a schedule.")
+        if not days:
+            raise HomeAssistantError("Select at least one day for the schedule.")
+
+        timezone = hass.config.time_zone or "UTC"
+
+        try:
+            validation = await hass.async_add_executor_job(
+                coordinator.client.validate_schedule,
+                schedule_type,
+                schedule_type == "cfg",
+            )
+        except Exception as exc:
+            _LOGGER.error("[Enphase] Schedule validation failed: %s", exc)
+            raise HomeAssistantError(f"Validation failed: {exc}") from exc
+
+        if isinstance(validation, dict) and not validation.get("valid", True):
+            raise HomeAssistantError(
+                validation.get("message", "Schedule rejected by validation endpoint.")
+            )
+
+        try:
+            await hass.async_add_executor_job(
+                coordinator.client.delete_schedule,
+                schedule_id,
+            )
+        except Exception as exc:
+            _LOGGER.error("[Enphase] Failed to delete schedule %s: %s", schedule_id, exc)
+            raise HomeAssistantError(
+                f"Failed to delete schedule {schedule_id}: {exc}"
+            ) from exc
+
+        try:
+            await hass.async_add_executor_job(
+                coordinator.client.add_schedule,
+                schedule_type,
+                start_str,
+                end_str,
+                limit,
+                days,
+                timezone,
+            )
+        except Exception as exc:
+            _LOGGER.error("[Enphase] Failed to add schedule: %s", exc)
+            raise HomeAssistantError(f"Failed to add schedule: {exc}") from exc
+
+        await asyncio.sleep(2)
+
+        try:
+            await hass.async_add_executor_job(
+                coordinator.client.set_mode,
+                schedule_type,
+                True,
+                start_str if schedule_type == "dtg" else None,
+                end_str if schedule_type == "dtg" else None,
+            )
+        except Exception as exc:
+            _LOGGER.error(
+                "[Enphase] Schedule updated but failed to apply %s settings: %s",
+                schedule_type,
+                exc,
+            )
+            raise HomeAssistantError(
+                f"Schedule updated but failed to apply {schedule_type.upper()} settings: {exc}"
+            ) from exc
 
         async_call_later(
             hass,
@@ -453,6 +564,12 @@ def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_ADD_SCHEDULE, async_add_schedule_service, schema=ADD_SCHEDULE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_SCHEDULE,
+        async_update_schedule_service,
+        schema=UPDATE_SCHEDULE_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,
