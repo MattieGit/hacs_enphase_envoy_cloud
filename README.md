@@ -38,6 +38,16 @@ This mirrors the Enlighten scheduling workflow, but uses standard Home Assistant
 
 ## Installation
 
+### HACS
+
+1. Open Hacs
+2. Click on three dots and then custom repositories
+3. Add https://github.com/chinedu40/hacs_enphase_envoy_cloud and for type select Integration
+4. Download integration and then restart Home assistant
+5. Go to: **Settings → Devices & services → Add integration**
+6. Search for: **Enphase Envoy Cloud Control**
+7. Follow the config flow.
+
 ### Manual install
 
 1. Copy the integration folder into:
@@ -214,6 +224,7 @@ This integration preserves the same ordering used by the Enlighten web UI. In pa
 ## Disclaimer
 
 This integration uses non-official web endpoints that may change. If Enphase updates their UI backend, the integration may require updates.
+While I was able to reverse engineer the enphase REST API, I used AI to code this integration. 
 
 ---
 
