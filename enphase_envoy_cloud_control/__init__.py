@@ -48,6 +48,31 @@ ADD_SCHEDULE_SCHEMA = vol.Schema(
 
 _SCHEDULE_ID_REGEX = r"^[0-9a-fA-F-]{6,}$"
 
+
+def _normalize_schedule_ids(raw: Any) -> list[str]:
+    schedule_ids: list[str] = []
+    if raw is None:
+        return schedule_ids
+
+    if isinstance(raw, (list, tuple, set)):
+        candidates = [str(val) for val in raw]
+    else:
+        candidates = [str(raw)]
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        extracted_ids = re.findall(r"[0-9a-fA-F-]{6,}", candidate)
+        if extracted_ids:
+            schedule_ids.extend(extracted_ids)
+            continue
+        schedule_ids.extend(
+            [part for part in re.split(r"[,\s]+", candidate) if part]
+        )
+
+    schedule_ids = [sched_id.strip().strip("'\"") for sched_id in schedule_ids]
+    return [sched_id for sched_id in schedule_ids if sched_id]
+
 DELETE_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
@@ -275,19 +300,12 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def async_delete_schedule_service(call: ServiceCall) -> None:
         coordinator = _get_coordinator_from_call(hass, call)
-        schedule_ids: list[str] = []
         if call.data.get("schedule_ids"):
-            raw = call.data["schedule_ids"]
-            if isinstance(raw, str):
-                schedule_ids = [val.strip() for val in raw.split(",")]
-            else:
-                schedule_ids = [str(val).strip() for val in raw]
+            schedule_ids = _normalize_schedule_ids(call.data["schedule_ids"])
         elif call.data.get("schedule_id"):
-            schedule_ids = [call.data["schedule_id"].strip()]
+            schedule_ids = _normalize_schedule_ids(call.data["schedule_id"])
         else:
             raise HomeAssistantError("Provide schedule_id or schedule_ids to delete.")
-
-        schedule_ids = [sched_id for sched_id in schedule_ids if sched_id]
         if not schedule_ids:
             raise HomeAssistantError("Provide at least one schedule ID to delete.")
 
