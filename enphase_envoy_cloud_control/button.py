@@ -81,9 +81,9 @@ class EnphaseAddScheduleButton(CoordinatorEntity, ButtonEntity):
             )
             return
         _LOGGER.debug(
-            "[Enphase] Add schedule options flow created: handler=%s step_id=%s",
+            "[Enphase] Add schedule options flow created: handler=%s type=%s",
             flow.handler,
-            flow.step_id,
+            type(flow).__name__,
         )
 
     @property
@@ -122,9 +122,9 @@ class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
             )
             return
         _LOGGER.debug(
-            "[Enphase] Delete schedule options flow created: handler=%s step_id=%s",
+            "[Enphase] Delete schedule options flow created: handler=%s type=%s",
             flow.handler,
-            flow.step_id,
+            type(flow).__name__,
         )
 
     @property
