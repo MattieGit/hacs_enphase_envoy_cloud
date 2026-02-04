@@ -365,6 +365,23 @@ def _register_services(hass: HomeAssistant) -> None:
                     mode,
                 )
                 continue
+            if mode in ("cfg", "dtg"):
+                try:
+                    await hass.async_add_executor_job(
+                        coordinator.client.validate_schedule,
+                        mode,
+                        mode == "cfg",
+                    )
+                except Exception as exc:
+                    _LOGGER.error(
+                        "[Enphase] Failed to validate %s schedule after delete: %s",
+                        mode,
+                        exc,
+                    )
+                    raise HomeAssistantError(
+                        f"Failed to validate {mode} schedule after delete: {exc}"
+                    ) from exc
+                await asyncio.sleep(3)
             try:
                 await hass.async_add_executor_job(
                     coordinator.client.set_mode,
