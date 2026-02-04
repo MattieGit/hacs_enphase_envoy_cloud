@@ -7,17 +7,21 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .editor import days_list_from_editor, get_coordinator, get_entry_data
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the Enphase Force Cloud Refresh button."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = get_coordinator(hass, entry.entry_id)
     async_add_entities(
         [
             EnphaseForceCloudRefreshButton(coordinator),
             EnphaseAddScheduleButton(coordinator),
             EnphaseDeleteScheduleButton(coordinator),
+            EnphaseScheduleSaveButton(entry.entry_id),
+            EnphaseScheduleDeleteButton(entry.entry_id),
+            EnphaseNewScheduleAddButton(entry.entry_id),
         ],
         True,
     )
@@ -150,6 +154,128 @@ class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
     def device_info(self):
         return {
             "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
+            "name": "Enphase Envoy Cloud Control",
+            "manufacturer": "Enphase Energy",
+            "model": "Envoy Cloud API",
+        }
+
+
+class EnphaseScheduleSaveButton(ButtonEntity):
+    """Button to save edits to an existing schedule."""
+
+    _attr_name = "Schedule Save"
+    _attr_icon = "mdi:content-save"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry_id: str):
+        self.entry_id = entry_id
+        self._attr_unique_id = f"{entry_id}_schedule_save"
+
+    async def async_press(self) -> None:
+        entry_data = get_entry_data(self.hass, self.entry_id)
+        editor = entry_data["editor"]
+        schedule_id = editor.get("selected_schedule_id")
+        if not schedule_id:
+            _LOGGER.warning("[Enphase] No schedule selected for update.")
+            return
+        data = {
+            "config_entry_id": self.entry_id,
+            "schedule_id": schedule_id,
+            "schedule_type": editor.get("schedule_type", "cfg"),
+            "start_time": editor.get("start_time", "00:00"),
+            "end_time": editor.get("end_time", "00:00"),
+            "limit": int(editor.get("limit", 0)),
+            "days": days_list_from_editor(editor.get("days", {})),
+            "confirm": True,
+        }
+        await self.hass.services.async_call(
+            DOMAIN,
+            "update_schedule",
+            data,
+            blocking=True,
+        )
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self.entry_id)},
+            "name": "Enphase Envoy Cloud Control",
+            "manufacturer": "Enphase Energy",
+            "model": "Envoy Cloud API",
+        }
+
+
+class EnphaseScheduleDeleteButton(ButtonEntity):
+    """Button to delete the selected schedule."""
+
+    _attr_name = "Schedule Delete"
+    _attr_icon = "mdi:calendar-remove"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry_id: str):
+        self.entry_id = entry_id
+        self._attr_unique_id = f"{entry_id}_schedule_delete"
+
+    async def async_press(self) -> None:
+        entry_data = get_entry_data(self.hass, self.entry_id)
+        schedule_id = entry_data["editor"].get("selected_schedule_id")
+        if not schedule_id:
+            _LOGGER.warning("[Enphase] No schedule selected for deletion.")
+            return
+        await self.hass.services.async_call(
+            DOMAIN,
+            "delete_schedule",
+            {
+                "config_entry_id": self.entry_id,
+                "schedule_id": schedule_id,
+                "confirm": True,
+            },
+            blocking=True,
+        )
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self.entry_id)},
+            "name": "Enphase Envoy Cloud Control",
+            "manufacturer": "Enphase Energy",
+            "model": "Envoy Cloud API",
+        }
+
+
+class EnphaseNewScheduleAddButton(ButtonEntity):
+    """Button to add a new schedule from editor state."""
+
+    _attr_name = "New Schedule Add"
+    _attr_icon = "mdi:calendar-plus"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry_id: str):
+        self.entry_id = entry_id
+        self._attr_unique_id = f"{entry_id}_new_schedule_add"
+
+    async def async_press(self) -> None:
+        entry_data = get_entry_data(self.hass, self.entry_id)
+        editor = entry_data["new_editor"]
+        data = {
+            "config_entry_id": self.entry_id,
+            "schedule_type": editor.get("schedule_type", "cfg"),
+            "start_time": editor.get("start_time", "00:00"),
+            "end_time": editor.get("end_time", "00:00"),
+            "limit": int(editor.get("limit", 0)),
+            "days": days_list_from_editor(editor.get("days", {})),
+        }
+        await self.hass.services.async_call(
+            DOMAIN,
+            "add_schedule",
+            data,
+            blocking=True,
+        )
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self.entry_id)},
             "name": "Enphase Envoy Cloud Control",
             "manufacturer": "Enphase Energy",
             "model": "Envoy Cloud API",
