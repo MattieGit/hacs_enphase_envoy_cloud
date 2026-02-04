@@ -69,9 +69,21 @@ class EnphaseAddScheduleButton(CoordinatorEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Launch the options flow for adding a schedule."""
         _LOGGER.debug("[Enphase] Add Schedule button pressed.")
-        await self.coordinator.hass.config_entries.options.async_create_flow(
-            self.coordinator.entry.entry_id,
-            context={"source": "schedule_add_button"},
+        try:
+            flow = await self.coordinator.hass.config_entries.options.async_create_flow(
+                self.coordinator.entry.entry_id,
+                context={"source": "schedule_add_button"},
+            )
+        except Exception as exc:
+            _LOGGER.exception(
+                "[Enphase] Failed to start add schedule options flow: %s",
+                exc,
+            )
+            return
+        _LOGGER.debug(
+            "[Enphase] Add schedule options flow created: handler=%s step_id=%s",
+            flow.handler,
+            flow.step_id,
         )
 
     @property
@@ -98,9 +110,21 @@ class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Launch the options flow for deleting a schedule."""
         _LOGGER.debug("[Enphase] Delete Schedule button pressed.")
-        await self.coordinator.hass.config_entries.options.async_create_flow(
-            self.coordinator.entry.entry_id,
-            context={"source": "schedule_delete_button"},
+        try:
+            flow = await self.coordinator.hass.config_entries.options.async_create_flow(
+                self.coordinator.entry.entry_id,
+                context={"source": "schedule_delete_button"},
+            )
+        except Exception as exc:
+            _LOGGER.exception(
+                "[Enphase] Failed to start delete schedule options flow: %s",
+                exc,
+            )
+            return
+        _LOGGER.debug(
+            "[Enphase] Delete schedule options flow created: handler=%s step_id=%s",
+            flow.handler,
+            flow.step_id,
         )
 
     @property

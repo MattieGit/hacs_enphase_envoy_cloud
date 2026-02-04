@@ -49,4 +49,8 @@ class EnphaseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Return the options flow handler."""
+        _LOGGER.debug(
+            "[Enphase] Creating options flow handler for entry_id=%s",
+            config_entry.entry_id,
+        )
         return EnphaseOptionsFlowHandler(config_entry)
