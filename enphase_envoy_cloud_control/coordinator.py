@@ -115,6 +115,7 @@ class EnphaseCoordinator(DataUpdateCoordinator):
 
     async def async_initialize_auth(self) -> None:
         """Ensure authentication is ready and persist discovered IDs."""
+        await self.hass.async_add_executor_job(self.client.load_cache)
         ids = await self.hass.async_add_executor_job(self.client.ensure_authenticated)
         if not ids:
             return

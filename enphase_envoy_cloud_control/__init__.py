@@ -295,7 +295,7 @@ def _register_services(hass: HomeAssistant) -> None:
         async_call_later(
             hass,
             5,
-            lambda _: hass.async_create_task(_post_action_refresh(coordinator)),
+            lambda _: _schedule_post_action_refresh(hass, coordinator),
         )
 
     async def async_delete_schedule_service(call: ServiceCall) -> None:
@@ -355,7 +355,7 @@ def _register_services(hass: HomeAssistant) -> None:
         async_call_later(
             hass,
             5,
-            lambda _: hass.async_create_task(_post_action_refresh(coordinator)),
+            lambda _: _schedule_post_action_refresh(hass, coordinator),
         )
 
     async def async_validate_schedule_service(call: ServiceCall) -> None:
@@ -418,6 +418,15 @@ async def _post_action_refresh(coordinator: EnphaseCoordinator) -> None:
         await coordinator.async_request_refresh()
     except Exception as exc:  # pragma: no cover - defensive log
         _LOGGER.warning("[Enphase] Post-action refresh failed: %s", exc)
+
+
+def _schedule_post_action_refresh(
+    hass: HomeAssistant, coordinator: EnphaseCoordinator
+) -> None:
+    """Schedule a post-action refresh from any thread safely."""
+    hass.loop.call_soon_threadsafe(
+        hass.async_create_task, _post_action_refresh(coordinator)
+    )
 
 
 def _collect_schedules(coordinator: EnphaseCoordinator, mode: str) -> list[dict[str, Any]]:
