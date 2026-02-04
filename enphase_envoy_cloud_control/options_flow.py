@@ -218,7 +218,8 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
 
     def _schedule_options(self) -> list[selector.SelectOptionDict]:
         """Build schedule options for the delete form."""
-        coordinator = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
+        entry_data = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
+        coordinator = entry_data.get("coordinator") if isinstance(entry_data, dict) else None
         if not coordinator or not getattr(coordinator, "data", None):
             return []
 
