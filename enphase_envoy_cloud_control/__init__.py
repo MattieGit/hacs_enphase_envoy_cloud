@@ -48,6 +48,31 @@ ADD_SCHEDULE_SCHEMA = vol.Schema(
 
 _SCHEDULE_ID_REGEX = r"^[0-9a-fA-F-]{6,}$"
 
+
+def _normalize_schedule_ids(raw: Any) -> list[str]:
+    schedule_ids: list[str] = []
+    if raw is None:
+        return schedule_ids
+
+    if isinstance(raw, (list, tuple, set)):
+        candidates = [str(val) for val in raw]
+    else:
+        candidates = [str(raw)]
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        extracted_ids = re.findall(r"[0-9a-fA-F-]{6,}", candidate)
+        if extracted_ids:
+            schedule_ids.extend(extracted_ids)
+            continue
+        schedule_ids.extend(
+            [part for part in re.split(r"[,\s]+", candidate) if part]
+        )
+
+    schedule_ids = [sched_id.strip().strip("'\"") for sched_id in schedule_ids]
+    return [sched_id for sched_id in schedule_ids if sched_id]
+
 DELETE_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Optional("config_entry_id"): cv.string,
@@ -270,26 +295,27 @@ def _register_services(hass: HomeAssistant) -> None:
         async_call_later(
             hass,
             5,
-            lambda _: hass.async_create_task(_post_action_refresh(coordinator)),
+            lambda _: _schedule_post_action_refresh(hass, coordinator),
         )
 
     async def async_delete_schedule_service(call: ServiceCall) -> None:
         coordinator = _get_coordinator_from_call(hass, call)
-        schedule_ids: list[str] = []
         if call.data.get("schedule_ids"):
-            raw = call.data["schedule_ids"]
-            if isinstance(raw, str):
-                schedule_ids = [val.strip() for val in raw.split(",")]
-            else:
-                schedule_ids = [str(val).strip() for val in raw]
+            schedule_ids = _normalize_schedule_ids(call.data["schedule_ids"])
         elif call.data.get("schedule_id"):
-            schedule_ids = [call.data["schedule_id"].strip()]
+            schedule_ids = _normalize_schedule_ids(call.data["schedule_id"])
         else:
             raise HomeAssistantError("Provide schedule_id or schedule_ids to delete.")
-
-        schedule_ids = [sched_id for sched_id in schedule_ids if sched_id]
         if not schedule_ids:
             raise HomeAssistantError("Provide at least one schedule ID to delete.")
+
+        schedule_modes: dict[str, str] = {}
+        for mode in ("cfg", "dtg", "rbd"):
+            for sched in _collect_schedules(coordinator, mode):
+                schedule_id = sched.get("scheduleId")
+                if schedule_id is None:
+                    continue
+                schedule_modes[str(schedule_id)] = mode
 
         schedule_id_pattern = re.compile(_SCHEDULE_ID_REGEX)
         invalid_ids = [sched_id for sched_id in schedule_ids if not schedule_id_pattern.match(sched_id)]
@@ -326,6 +352,54 @@ def _register_services(hass: HomeAssistant) -> None:
                     f"Failed to delete schedule {schedule_id}: {exc}"
                 ) from exc
 
+        affected_modes = {
+            schedule_modes[sched_id]
+            for sched_id in schedule_ids
+            if sched_id in schedule_modes
+        }
+        for mode in sorted(affected_modes):
+            settings = _mode_settings_from_data(coordinator, mode)
+            if not settings:
+                _LOGGER.debug(
+                    "[Enphase] Skipping post-delete mode update for %s; no settings found.",
+                    mode,
+                )
+                continue
+            if mode in ("cfg", "dtg"):
+                try:
+                    await hass.async_add_executor_job(
+                        coordinator.client.validate_schedule,
+                        mode,
+                        mode == "cfg",
+                    )
+                except Exception as exc:
+                    _LOGGER.error(
+                        "[Enphase] Failed to validate %s schedule after delete: %s",
+                        mode,
+                        exc,
+                    )
+                    raise HomeAssistantError(
+                        f"Failed to validate {mode} schedule after delete: {exc}"
+                    ) from exc
+                await asyncio.sleep(3)
+            try:
+                await hass.async_add_executor_job(
+                    coordinator.client.set_mode,
+                    mode,
+                    settings["enabled"],
+                    settings.get("start_time"),
+                    settings.get("end_time"),
+                )
+            except Exception as exc:
+                _LOGGER.error(
+                    "[Enphase] Failed to update %s settings after delete: %s",
+                    mode,
+                    exc,
+                )
+                raise HomeAssistantError(
+                    f"Failed to update {mode} settings after delete: {exc}"
+                ) from exc
+
         if "persistent_notification" in hass.config.components:
             persistent_notification.async_create(
                 hass,
@@ -337,7 +411,7 @@ def _register_services(hass: HomeAssistant) -> None:
         async_call_later(
             hass,
             5,
-            lambda _: hass.async_create_task(_post_action_refresh(coordinator)),
+            lambda _: _schedule_post_action_refresh(hass, coordinator),
         )
 
     async def async_validate_schedule_service(call: ServiceCall) -> None:
@@ -402,6 +476,15 @@ async def _post_action_refresh(coordinator: EnphaseCoordinator) -> None:
         _LOGGER.warning("[Enphase] Post-action refresh failed: %s", exc)
 
 
+def _schedule_post_action_refresh(
+    hass: HomeAssistant, coordinator: EnphaseCoordinator
+) -> None:
+    """Schedule a post-action refresh from any thread safely."""
+    hass.loop.call_soon_threadsafe(
+        hass.async_create_task, _post_action_refresh(coordinator)
+    )
+
+
 def _collect_schedules(coordinator: EnphaseCoordinator, mode: str) -> list[dict[str, Any]]:
     """Collect cached schedules for the given mode."""
     data_root = coordinator.data or {}
@@ -432,3 +515,26 @@ def _collect_schedules(coordinator: EnphaseCoordinator, mode: str) -> list[dict[
             return candidate
 
     return []
+
+
+def _mode_settings_from_data(
+    coordinator: EnphaseCoordinator, mode: str
+) -> dict[str, Any]:
+    data_root = coordinator.data or {}
+    control = data_root.get("data", {}).get(f"{mode}Control", {})
+    if not isinstance(control, dict):
+        return {}
+
+    if mode == "cfg":
+        enabled = control.get("chargeFromGrid")
+    else:
+        enabled = control.get("enabled")
+
+    if enabled is None:
+        return {}
+
+    settings: dict[str, Any] = {"enabled": bool(enabled)}
+    if mode == "dtg":
+        settings["start_time"] = control.get("startTime")
+        settings["end_time"] = control.get("endTime")
+    return settings
