@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity
 
 from .const import DOMAIN
+from .device import schedule_editor_device_info
 from .editor import get_entry_data
 
 
@@ -49,9 +50,4 @@ class EnphaseScheduleLimit(NumberEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)

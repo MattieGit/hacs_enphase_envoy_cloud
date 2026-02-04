@@ -4,6 +4,7 @@ import logging
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
+from .device import battery_device_info, schedule_editor_device_info
 from .editor import DAY_ORDER, get_coordinator, get_entry_data
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,12 +74,7 @@ class EnphaseModeSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def device_info(self):
         """Attach to Enphase Envoy Cloud device."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return battery_device_info(self.coordinator.entry.entry_id)
 
 
 class EnphaseEditorDaySwitch(SwitchEntity):
@@ -113,9 +109,4 @@ class EnphaseEditorDaySwitch(SwitchEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)

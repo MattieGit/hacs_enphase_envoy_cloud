@@ -7,6 +7,7 @@ import logging
 from homeassistant.components.select import SelectEntity
 
 from .const import DOMAIN
+from .device import schedule_editor_device_info
 from .editor import (
     editor_days_from_list,
     get_coordinator,
@@ -66,12 +67,7 @@ class EnphaseScheduleSelect(SelectEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)
 
 
 class EnphaseNewScheduleTypeSelect(SelectEntity):
@@ -104,9 +100,4 @@ class EnphaseNewScheduleTypeSelect(SelectEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)

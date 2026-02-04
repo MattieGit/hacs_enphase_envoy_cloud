@@ -7,6 +7,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .device import battery_device_info, schedule_editor_device_info
 from .editor import days_list_from_editor, get_coordinator, get_entry_data
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,12 +53,7 @@ class EnphaseForceCloudRefreshButton(CoordinatorEntity, ButtonEntity):
     @property
     def device_info(self):
         """Attach this button to the Enphase device."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return battery_device_info(self.coordinator.entry.entry_id)
 
 
 class EnphaseAddScheduleButton(CoordinatorEntity, ButtonEntity):
@@ -102,12 +98,7 @@ class EnphaseAddScheduleButton(CoordinatorEntity, ButtonEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return battery_device_info(self.coordinator.entry.entry_id)
 
 
 class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
@@ -152,12 +143,7 @@ class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return battery_device_info(self.coordinator.entry.entry_id)
 
 
 class EnphaseScheduleSaveButton(ButtonEntity):
@@ -197,12 +183,7 @@ class EnphaseScheduleSaveButton(ButtonEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)
 
 
 class EnphaseScheduleDeleteButton(ButtonEntity):
@@ -235,12 +216,7 @@ class EnphaseScheduleDeleteButton(ButtonEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)
 
 
 class EnphaseNewScheduleAddButton(ButtonEntity):
@@ -274,9 +250,4 @@ class EnphaseNewScheduleAddButton(ButtonEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return schedule_editor_device_info(self.entry_id)
