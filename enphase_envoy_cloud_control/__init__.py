@@ -309,6 +309,14 @@ def _register_services(hass: HomeAssistant) -> None:
         if not schedule_ids:
             raise HomeAssistantError("Provide at least one schedule ID to delete.")
 
+        schedule_modes: dict[str, str] = {}
+        for mode in ("cfg", "dtg", "rbd"):
+            for sched in _collect_schedules(coordinator, mode):
+                schedule_id = sched.get("scheduleId")
+                if schedule_id is None:
+                    continue
+                schedule_modes[str(schedule_id)] = mode
+
         schedule_id_pattern = re.compile(_SCHEDULE_ID_REGEX)
         invalid_ids = [sched_id for sched_id in schedule_ids if not schedule_id_pattern.match(sched_id)]
         if invalid_ids:
@@ -342,6 +350,37 @@ def _register_services(hass: HomeAssistant) -> None:
                 _LOGGER.error("[Enphase] Failed to delete schedule %s: %s", schedule_id, exc)
                 raise HomeAssistantError(
                     f"Failed to delete schedule {schedule_id}: {exc}"
+                ) from exc
+
+        affected_modes = {
+            schedule_modes[sched_id]
+            for sched_id in schedule_ids
+            if sched_id in schedule_modes
+        }
+        for mode in sorted(affected_modes):
+            settings = _mode_settings_from_data(coordinator, mode)
+            if not settings:
+                _LOGGER.debug(
+                    "[Enphase] Skipping post-delete mode update for %s; no settings found.",
+                    mode,
+                )
+                continue
+            try:
+                await hass.async_add_executor_job(
+                    coordinator.client.set_mode,
+                    mode,
+                    settings["enabled"],
+                    settings.get("start_time"),
+                    settings.get("end_time"),
+                )
+            except Exception as exc:
+                _LOGGER.error(
+                    "[Enphase] Failed to update %s settings after delete: %s",
+                    mode,
+                    exc,
+                )
+                raise HomeAssistantError(
+                    f"Failed to update {mode} settings after delete: {exc}"
                 ) from exc
 
         if "persistent_notification" in hass.config.components:
@@ -459,3 +498,26 @@ def _collect_schedules(coordinator: EnphaseCoordinator, mode: str) -> list[dict[
             return candidate
 
     return []
+
+
+def _mode_settings_from_data(
+    coordinator: EnphaseCoordinator, mode: str
+) -> dict[str, Any]:
+    data_root = coordinator.data or {}
+    control = data_root.get("data", {}).get(f"{mode}Control", {})
+    if not isinstance(control, dict):
+        return {}
+
+    if mode == "cfg":
+        enabled = control.get("chargeFromGrid")
+    else:
+        enabled = control.get("enabled")
+
+    if enabled is None:
+        return {}
+
+    settings: dict[str, Any] = {"enabled": bool(enabled)}
+    if mode == "dtg":
+        settings["start_time"] = control.get("startTime")
+        settings["end_time"] = control.get("endTime")
+    return settings

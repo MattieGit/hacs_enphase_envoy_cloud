@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 
+from homeassistant.components import persistent_notification
 from homeassistant.components.button import ButtonEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -80,11 +81,20 @@ class EnphaseAddScheduleButton(CoordinatorEntity, ButtonEntity):
                 exc,
             )
             return
+        flow_id = getattr(flow, "flow_id", None)
         _LOGGER.debug(
-            "[Enphase] Add schedule options flow created: handler=%s type=%s",
+            "[Enphase] Add schedule options flow created: handler=%s type=%s flow_id=%s",
             flow.handler,
             type(flow).__name__,
+            flow_id,
         )
+        if "persistent_notification" in self.coordinator.hass.config.components:
+            persistent_notification.async_create(
+                self.coordinator.hass,
+                "✅ Add Schedule flow created. Open the integration options UI to continue.",
+                title="Enphase Envoy Cloud Control",
+                notification_id=f"{DOMAIN}_schedule_add_flow",
+            )
 
     @property
     def device_info(self):
@@ -121,11 +131,20 @@ class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
                 exc,
             )
             return
+        flow_id = getattr(flow, "flow_id", None)
         _LOGGER.debug(
-            "[Enphase] Delete schedule options flow created: handler=%s type=%s",
+            "[Enphase] Delete schedule options flow created: handler=%s type=%s flow_id=%s",
             flow.handler,
             type(flow).__name__,
+            flow_id,
         )
+        if "persistent_notification" in self.coordinator.hass.config.components:
+            persistent_notification.async_create(
+                self.coordinator.hass,
+                "✅ Delete Schedule flow created. Open the integration options UI to continue.",
+                title="Enphase Envoy Cloud Control",
+                notification_id=f"{DOMAIN}_schedule_delete_flow",
+            )
 
     @property
     def device_info(self):
