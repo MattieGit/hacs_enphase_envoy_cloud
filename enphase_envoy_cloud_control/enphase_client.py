@@ -31,13 +31,12 @@ class EnphaseClient:
         self.xsrf_token: str | None = None
         self.cookies: dict | None = None
         self.jwt_exp: int | None = None
-        self._load_cache()
 
     # -------------------------------------------------------------------------
     # CACHE
     # -------------------------------------------------------------------------
 
-    def _load_cache(self):
+    def load_cache(self):
         """Load cached JWT/XSRF tokens if present."""
         try:
             if os.path.exists(CACHE_FILE):

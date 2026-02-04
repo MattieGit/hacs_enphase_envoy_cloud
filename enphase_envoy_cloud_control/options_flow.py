@@ -7,6 +7,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 from .const import DEFAULT_POLL_INTERVAL, DOMAIN
+from .const import LOGGER as _LOGGER
 
 SERVICE_ADD_SCHEDULE = "add_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
@@ -16,12 +17,17 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options for Enphase Envoy Cloud Control."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry):
-        self.config_entry = config_entry
+        self._config_entry = config_entry
         self._last_error: str | None = None
 
     async def async_step_init(self, user_input=None):
         """Manage the Enphase options."""
         source = self.context.get("source")
+        _LOGGER.debug(
+            "[Enphase] Options flow init: source=%s user_input=%s",
+            source,
+            user_input is not None,
+        )
         if source == "schedule_add_button":
             return await self.async_step_schedule_add(user_input)
         if source == "schedule_delete_button":
@@ -34,7 +40,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
             {
                 vol.Optional(
                     "poll_interval",
-                    default=self.config_entry.options.get(
+                    default=self._config_entry.options.get(
                         "poll_interval", DEFAULT_POLL_INTERVAL
                     ),
                 ): int,
@@ -49,6 +55,10 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_schedule_add(self, user_input=None):
         """Interactive form for adding a schedule via the options flow."""
+        _LOGGER.debug(
+            "[Enphase] Options flow schedule_add: user_input=%s",
+            user_input is not None,
+        )
         errors: dict[str, str] = {}
         if user_input is None:
             self._last_error = None
@@ -59,7 +69,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
 
             if not errors:
                 payload = {
-                    "config_entry_id": self.config_entry.entry_id,
+                    "config_entry_id": self._config_entry.entry_id,
                     "schedule_type": user_input["schedule_type"],
                     "start_time": user_input["start_time"],
                     "end_time": user_input["end_time"],
@@ -83,7 +93,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
                     )
                 else:
                     return self.async_create_entry(
-                        title="", data=dict(self.config_entry.options)
+                        title="", data=dict(self._config_entry.options)
                     )
 
         schedule_type_selector = selector.SelectSelector(
@@ -137,6 +147,10 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_schedule_delete(self, user_input=None):
         """Interactive form for deleting a schedule via the options flow."""
+        _LOGGER.debug(
+            "[Enphase] Options flow schedule_delete: user_input=%s",
+            user_input is not None,
+        )
         errors: dict[str, str] = {}
         if user_input is None:
             self._last_error = None
@@ -155,7 +169,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
                 errors["confirm"] = "required"
             else:
                 payload = {
-                    "config_entry_id": self.config_entry.entry_id,
+                    "config_entry_id": self._config_entry.entry_id,
                     "schedule_ids": user_input["schedule_ids"],
                     "confirm": True,
                 }
@@ -176,7 +190,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
                     )
                 else:
                     return self.async_create_entry(
-                        title="", data=dict(self.config_entry.options)
+                        title="", data=dict(self._config_entry.options)
                     )
 
         schedule_selector = selector.SelectSelector(
@@ -204,7 +218,7 @@ class EnphaseOptionsFlowHandler(config_entries.OptionsFlow):
 
     def _schedule_options(self) -> list[selector.SelectOptionDict]:
         """Build schedule options for the delete form."""
-        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        coordinator = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
         if not coordinator or not getattr(coordinator, "data", None):
             return []
 

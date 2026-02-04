@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 
+from homeassistant.components import persistent_notification
 from homeassistant.components.button import ButtonEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -69,10 +70,31 @@ class EnphaseAddScheduleButton(CoordinatorEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Launch the options flow for adding a schedule."""
         _LOGGER.debug("[Enphase] Add Schedule button pressed.")
-        await self.coordinator.hass.config_entries.options.async_create_flow(
-            self.coordinator.entry.entry_id,
-            context={"source": "schedule_add_button"},
+        try:
+            flow = await self.coordinator.hass.config_entries.options.async_create_flow(
+                self.coordinator.entry.entry_id,
+                context={"source": "schedule_add_button"},
+            )
+        except Exception as exc:
+            _LOGGER.exception(
+                "[Enphase] Failed to start add schedule options flow: %s",
+                exc,
+            )
+            return
+        flow_id = getattr(flow, "flow_id", None)
+        _LOGGER.debug(
+            "[Enphase] Add schedule options flow created: handler=%s type=%s flow_id=%s",
+            flow.handler,
+            type(flow).__name__,
+            flow_id,
         )
+        if "persistent_notification" in self.coordinator.hass.config.components:
+            persistent_notification.async_create(
+                self.coordinator.hass,
+                "✅ Add Schedule flow created. Open the integration options UI to continue.",
+                title="Enphase Envoy Cloud Control",
+                notification_id=f"{DOMAIN}_schedule_add_flow",
+            )
 
     @property
     def device_info(self):
@@ -98,10 +120,31 @@ class EnphaseDeleteScheduleButton(CoordinatorEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Launch the options flow for deleting a schedule."""
         _LOGGER.debug("[Enphase] Delete Schedule button pressed.")
-        await self.coordinator.hass.config_entries.options.async_create_flow(
-            self.coordinator.entry.entry_id,
-            context={"source": "schedule_delete_button"},
+        try:
+            flow = await self.coordinator.hass.config_entries.options.async_create_flow(
+                self.coordinator.entry.entry_id,
+                context={"source": "schedule_delete_button"},
+            )
+        except Exception as exc:
+            _LOGGER.exception(
+                "[Enphase] Failed to start delete schedule options flow: %s",
+                exc,
+            )
+            return
+        flow_id = getattr(flow, "flow_id", None)
+        _LOGGER.debug(
+            "[Enphase] Delete schedule options flow created: handler=%s type=%s flow_id=%s",
+            flow.handler,
+            type(flow).__name__,
+            flow_id,
         )
+        if "persistent_notification" in self.coordinator.hass.config.components:
+            persistent_notification.async_create(
+                self.coordinator.hass,
+                "✅ Delete Schedule flow created. Open the integration options UI to continue.",
+                title="Enphase Envoy Cloud Control",
+                notification_id=f"{DOMAIN}_schedule_delete_flow",
+            )
 
     @property
     def device_info(self):
