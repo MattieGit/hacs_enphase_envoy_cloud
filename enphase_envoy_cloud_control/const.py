@@ -1,13 +1,12 @@
-"""
-Constants for Enphase Envoy Cloud Control integration.
-Version: 1.5.2
-"""
+"""Constants for Enphase Envoy Cloud Control integration."""
 
 import logging
 
 DOMAIN = "enphase_envoy_cloud_control"
 NAME = "Enphase Envoy Cloud Control"
-VERSION = "1.5.2"
+VERSION = "1.6.0"
+DEVICE_KIND_BATTERY = "battery"
+DEVICE_KIND_SCHEDULE_EDITOR = "schedule_editor"
 
 # Common Enphase API URLs
 BASE_URL = "https://enlighten.enphaseenergy.com"
@@ -25,6 +24,9 @@ CONF_PASSWORD = "password"
 CONF_USER_ID = "user_id"
 CONF_BATTERY_ID = "battery_id"
 CONF_SITE_ID = "site_id"
+
+# Defaults
+DEFAULT_POLL_INTERVAL = 30
 
 # Cache path
 CACHE_DIR = ".cache"

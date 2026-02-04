@@ -5,14 +5,16 @@ from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN
+from .device import battery_device_info
+from .editor import normalize_schedules, get_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Enphase sensors from a config entry."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
-    sensors = [EnphaseBatteryModesSensor(coordinator)]
+    coordinator = get_coordinator(hass, entry.entry_id)
+    sensors = [EnphaseBatteryModesSensor(coordinator), EnphaseSchedulesSummarySensor(coordinator)]
 
     # Add per-mode schedule sensors
     for mode in ["cfg", "dtg", "rbd"]:
@@ -94,6 +96,72 @@ class EnphaseBatteryModesSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Ensure the sensor is attached to the shared Enphase device."""
+        return battery_device_info(self.coordinator.entry.entry_id)
+
+
+class EnphaseSchedulesSummarySensor(CoordinatorEntity, SensorEntity):
+    """Normalized schedule list for editor usage."""
+
+    _attr_name = "Enphase Schedules Summary"
+    _attr_icon = "mdi:calendar-multiple"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_schedules_summary"
+
+    @property
+    def state(self):
+        schedules = normalize_schedules(self.coordinator)
+        return str(len(schedules))
+
+    @property
+    def extra_state_attributes(self):
+        attrs = {
+            "schedules": normalize_schedules(self.coordinator),
+            "last_refresh": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
+        }
+        if getattr(self.coordinator, "last_update_success_time", None):
+            t = self.coordinator.last_update_success_time
+            if isinstance(t, datetime):
+                attrs["last_successful_poll"] = t.strftime("%Y-%m-%dT%H:%M:%S%z")
+        return attrs
+
+    @property
+    def device_info(self):
+        return battery_device_info(self.coordinator.entry.entry_id)
+
+
+class EnphaseSchedulesSummarySensor(CoordinatorEntity, SensorEntity):
+    """Normalized schedule list for editor usage."""
+
+    _attr_name = "Enphase Schedules Summary"
+    _attr_icon = "mdi:calendar-multiple"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_schedules_summary"
+
+    @property
+    def state(self):
+        schedules = normalize_schedules(self.coordinator)
+        return str(len(schedules))
+
+    @property
+    def extra_state_attributes(self):
+        attrs = {
+            "schedules": normalize_schedules(self.coordinator),
+            "last_refresh": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
+        }
+        if getattr(self.coordinator, "last_update_success_time", None):
+            t = self.coordinator.last_update_success_time
+            if isinstance(t, datetime):
+                attrs["last_successful_poll"] = t.strftime("%Y-%m-%dT%H:%M:%S%z")
+        return attrs
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
             "name": "Enphase Envoy Cloud Control",
@@ -123,9 +191,14 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
         scheds = self._schedules()
         if not scheds:
             return "None"
-        return ", ".join(
-            f"{s.get('startTime','??')}–{s.get('endTime','??')}" for s in scheds
-        )
+        state_parts = []
+        for sched in scheds:
+            start = sched.get("startTime", "??")
+            end = sched.get("endTime", "??")
+            schedule_id = sched.get("scheduleId")
+            label = f"#{schedule_id} " if schedule_id is not None else ""
+            state_parts.append(f"{label}{start}–{end}")
+        return ", ".join(state_parts)
 
     @property
     def extra_state_attributes(self):
@@ -137,6 +210,9 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
             t = self.coordinator.last_update_success_time
             if isinstance(t, datetime):
                 attrs["last_successful_poll"] = t.strftime("%Y-%m-%dT%H:%M:%S%z")
+        sched_ids = [s.get("scheduleId") for s in attrs["schedules"] if s.get("scheduleId")]
+        if sched_ids:
+            attrs["schedule_ids"] = sched_ids
         return attrs
 
     # ---------------------------------------------------------------------
@@ -158,7 +234,8 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
     def _schedules(self):
         """Return current schedules for this mode."""
         try:
-            d = (self.coordinator.data or {}).get("data", {})
+            data_root = self.coordinator.data or {}
+            d = data_root.get("data", {})
 
             # Case 1: <mode>Control.schedules[]
             block = d.get(f"{self.mode}Control") or {}
@@ -170,9 +247,28 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
             if block2 and isinstance(block2, dict) and "details" in block2:
                 return block2["details"]
 
-            # Case 3: fallback — use cached schedules
+            # Case 3: coordinator exposes schedules at the root level
+            sched_root = data_root.get("schedules")
+            if isinstance(sched_root, dict):
+                candidates = []
+                if self.mode in sched_root:
+                    candidates.append(sched_root[self.mode])
+                if "data" in sched_root and isinstance(sched_root["data"], dict):
+                    candidates.append(sched_root["data"].get(self.mode))
+
+                for candidate in candidates:
+                    if not candidate:
+                        continue
+                    if isinstance(candidate, dict) and "details" in candidate:
+                        return candidate["details"]
+                    if isinstance(candidate, list):
+                        return candidate
+
+            # Case 4: fallback — use cached schedules
             if hasattr(self.coordinator.client, "_last_schedules"):
                 schedules = getattr(self.coordinator.client, "_last_schedules")
+            elif data_root.get("schedules_raw"):
+                schedules = data_root.get("schedules_raw")
             else:
                 # Schedule a background safe fetch
                 self.coordinator.hass.async_create_task(self._async_fetch_schedules_safe())
@@ -183,13 +279,13 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
                     m = schedules[self.mode]
                     if isinstance(m, dict) and "details" in m:
                         return m["details"]
-                    elif isinstance(m, list):
+                    if isinstance(m, list):
                         return m
-                elif "data" in schedules and self.mode in schedules["data"]:
-                    m = schedules["data"][self.mode]
+                if "data" in schedules and isinstance(schedules["data"], dict):
+                    m = schedules["data"].get(self.mode)
                     if isinstance(m, dict) and "details" in m:
                         return m["details"]
-                    elif isinstance(m, list):
+                    if isinstance(m, list):
                         return m
             return []
         except Exception as e:
@@ -199,9 +295,4 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Ensure this sensor attaches to the same device as toggles."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
+        return battery_device_info(self.coordinator.entry.entry_id)

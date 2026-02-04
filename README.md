@@ -1,5 +1,3 @@
-
-
 # 🧩 HACS Installation Instructions
 
 ## Manual Installation

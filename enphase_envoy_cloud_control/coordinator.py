@@ -1,29 +1,32 @@
 from __future__ import annotations
-import logging
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
-from homeassistant.util import dt as dt_util
-from .const import DOMAIN
-from .enphase_client import EnphaseClient   #  add this import
+from homeassistant.config_entries import ConfigEntry
+from .const import LOGGER, DEFAULT_POLL_INTERVAL
+from .enphase_client import EnphaseClient
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = LOGGER
 
 
 class EnphaseCoordinator(DataUpdateCoordinator):
-    """Central coordinator for Enphase Cloud data and state."""
+    """Manages periodic updates from the Enphase Cloud."""
 
-    def __init__(self, hass: HomeAssistant, entry):
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
+        """Initialize the coordinator."""
         self.hass = hass
         self.entry = entry
-
-        #  FIX: construct EnphaseClient directly
         self.client = EnphaseClient(
             email=entry.data.get("email"),
             password=entry.data.get("password"),
             user_id=entry.data.get("user_id"),
             battery_id=entry.data.get("battery_id"),
         )
+
+        # ✅ Custom polling interval (default 30s)
+        poll_interval = entry.options.get("poll_interval", DEFAULT_POLL_INTERVAL)
+        self.update_interval = timedelta(seconds=poll_interval)
+        _LOGGER.info(f"[Enphase] Polling interval set to {poll_interval}s")
 
         self.last_refresh = None
         self.last_successful_poll = None
@@ -32,28 +35,98 @@ class EnphaseCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="Enphase Envoy Cloud Control Coordinator",
-            update_interval=timedelta(seconds=30),
+            update_interval=self.update_interval,
         )
 
     async def _async_update_data(self):
-        """Fetch latest data asynchronously."""
+        """Fetch latest data from Enphase Cloud."""
         try:
-            _LOGGER.debug("[Coordinator] Fetching new data from Enphase Cloud")
+            _LOGGER.debug("[Enphase] Starting scheduled data update.")
             data = await self.hass.async_add_executor_job(self._fetch)
-            self.last_refresh = dt_util.utcnow().isoformat()
-            self.last_successful_poll = self.last_refresh
+            self.last_successful_poll = datetime.now(timezone.utc)
+            self.last_refresh = self.last_successful_poll.isoformat()
             return data
         except Exception as err:
-            raise UpdateFailed(f"Error fetching Enphase data: {err}") from err
+            _LOGGER.error("[Enphase] Error updating data: %s", err)
+            raise UpdateFailed(err)
 
     def _fetch(self):
-        """Blocking HTTP calls run in executor."""
-        battery_data = self.client.battery_settings() or {}
-        schedules = self.client.get_schedules() or {}
-        inner_data = battery_data.get("data", battery_data)
-        return {"data": inner_data, "schedules": schedules}
+        """Synchronous fetch — runs inside executor."""
+        try:
+            battery_data = self.client.battery_settings() or {}
+            schedules = self.client.get_schedules() or {}
+
+            # Persist the last schedule payload for entities that reference it
+            # outside of the coordinator data structure (legacy behaviour).
+            setattr(self.client, "_last_schedules", schedules)
+
+            # Normalise schedule payload to the inner "data" block when present.
+            schedule_block = schedules.get("data") if isinstance(schedules, dict) else None
+            if not schedule_block:
+                schedule_block = schedules if isinstance(schedules, dict) else {}
+
+            inner_data = battery_data.get("data", battery_data)
+
+            # Merge concrete schedule details (start/end, limit, etc.) into the
+            # cfg/dtg/rbd control blocks so entities always read fresh values.
+            if isinstance(inner_data, dict) and isinstance(schedule_block, dict):
+                for mode in ("cfg", "dtg", "rbd"):
+                    details = schedule_block.get(mode)
+                    if not isinstance(details, dict):
+                        continue
+                    detail_list = details.get("details")
+                    if not isinstance(detail_list, list):
+                        continue
+
+                    control_key = f"{mode}Control"
+                    control = inner_data.get(control_key)
+                    if not isinstance(control, dict):
+                        continue
+                    schedules_list = control.get("schedules")
+                    if not isinstance(schedules_list, list):
+                        continue
+
+                    merged_schedules = []
+                    for idx, sched in enumerate(schedules_list):
+                        merged_sched = dict(sched) if isinstance(sched, dict) else {}
+                        detail = detail_list[idx] if idx < len(detail_list) else None
+                        if isinstance(detail, dict):
+                            for key in ("startTime", "endTime", "scheduleId", "limit", "days"):
+                                if detail.get(key) is not None:
+                                    merged_sched[key] = detail[key]
+                        merged_schedules.append(merged_sched)
+                    control["schedules"] = merged_schedules
+
+            merged = {
+                "data": inner_data,
+                "schedules": schedule_block,
+                "schedules_raw": schedules,
+            }
+            _LOGGER.debug("[Enphase] Data fetch complete. Keys: %s", list(merged.keys()))
+            return merged
+        except Exception as e:
+            _LOGGER.warning("[Enphase] Coordinator fetch failed: %s", e)
+            raise
 
     async def async_force_refresh(self):
-        """Force an immediate refresh (used by button/switch)."""
-        _LOGGER.info("[Coordinator] Manual cloud refresh triggered")
+        """Manually triggered refresh (Force Cloud Refresh button)."""
+        _LOGGER.info("[Enphase] Manual cloud refresh requested.")
         await self.async_request_refresh()
+
+    async def async_initialize_auth(self) -> None:
+        """Ensure authentication is ready and persist discovered IDs."""
+        await self.hass.async_add_executor_job(self.client.load_cache)
+        ids = await self.hass.async_add_executor_job(self.client.ensure_authenticated)
+        if not ids:
+            return
+
+        updated = dict(self.entry.data)
+        changed = False
+        for key in ("user_id", "battery_id"):
+            value = ids.get(key)
+            if value and not updated.get(key):
+                updated[key] = value
+                changed = True
+
+        if changed:
+            self.hass.config_entries.async_update_entry(self.entry, data=updated)
