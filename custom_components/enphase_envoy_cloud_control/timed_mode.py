@@ -134,12 +134,14 @@ async def enable_timed_mode(
     await hass.async_add_executor_job(client.set_mode, mode, True)
 
     # Set up expiry timer to disable the mode
+    async def _timer_callback(_now) -> None:
+        """Timer callback — runs in event loop."""
+        await _on_timed_mode_expired(hass, entry_id, mode)
+
     cancel: CALLBACK_TYPE = async_call_later(
         hass,
         duration_minutes * 60,
-        lambda _now: hass.async_create_task(
-            _on_timed_mode_expired(hass, entry_id, mode)
-        ),
+        _timer_callback,
     )
 
     timed[mode] = {
@@ -152,10 +154,11 @@ async def enable_timed_mode(
     await _save_store(hass, entry_id)
 
     # Refresh so entities pick up the mode change
-    async_call_later(
-        hass, 5,
-        lambda _: hass.async_create_task(coordinator.async_request_refresh()),
-    )
+    async def _refresh_callback(_now) -> None:
+        """Refresh callback — runs in event loop."""
+        await coordinator.async_request_refresh()
+
+    async_call_later(hass, 5, _refresh_callback)
 
 
 async def _on_timed_mode_expired(
@@ -212,11 +215,11 @@ async def cancel_timed_mode(
 
     await _save_store(hass, entry_id)
 
-    # Refresh
-    async_call_later(
-        hass, 5,
-        lambda _: hass.async_create_task(coordinator.async_request_refresh()),
-    )
+    # Refresh after delay
+    async def _refresh_callback(_now) -> None:
+        await coordinator.async_request_refresh()
+
+    async_call_later(hass, 5, _refresh_callback)
 
 
 async def cancel_all_timed_modes(
