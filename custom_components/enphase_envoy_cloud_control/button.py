@@ -274,9 +274,14 @@ class EnphaseTimedModeButton(CoordinatorEntity, ButtonEntity):
 
         entry_id = self.coordinator.entry.entry_id
 
-        # Find the duration entity's current value
-        duration_entity_id = "number.enphase_timed_duration"
-        state = self.hass.states.get(duration_entity_id)
+        # Find the duration entity's current value via entity registry
+        from homeassistant.helpers import entity_registry as er
+
+        ent_reg = er.async_get(self.hass)
+        duration_entity_id = ent_reg.async_get_entity_id(
+            "number", DOMAIN, f"{entry_id}_timed_duration"
+        )
+        state = self.hass.states.get(duration_entity_id) if duration_entity_id else None
         if state is None or state.state in ("unknown", "unavailable"):
             duration = 60  # fallback default
         else:
