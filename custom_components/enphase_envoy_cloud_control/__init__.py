@@ -31,6 +31,7 @@ SERVICE_ADD_SCHEDULE = "add_schedule"
 SERVICE_UPDATE_SCHEDULE = "update_schedule"
 SERVICE_DELETE_SCHEDULE = "delete_schedule"
 SERVICE_VALIDATE_SCHEDULE = "validate_schedule"
+SERVICE_ENABLE_TIMED_MODE = "enable_timed_mode"
 
 FORCE_REFRESH_SCHEMA = vol.Schema({vol.Optional("config_entry_id"): cv.string})
 
@@ -107,6 +108,14 @@ VALIDATE_SCHEDULE_SCHEMA = vol.Schema(
     }
 )
 
+ENABLE_TIMED_MODE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("config_entry_id"): cv.string,
+        vol.Required("mode"): vol.All(cv.string, vol.Lower, vol.In(["cfg", "dtg", "rbd"])),
+        vol.Required("duration"): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+    }
+)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Enphase Envoy Cloud Control from a config entry."""
@@ -129,6 +138,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_initialize_auth()
     await coordinator.async_config_entry_first_refresh()
 
+    from .timed_mode import recover_timed_modes
+    await recover_timed_modes(hass, entry.entry_id)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _LOGGER.debug("[Enphase] Forwarded platforms: %s", PLATFORMS)
 
@@ -138,6 +150,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload Enphase integration when entry is removed."""
     _LOGGER.info("Unloading Enphase Envoy Cloud Control integration.")
+
+    from .timed_mode import cancel_all_timed_modes
+    try:
+        await cancel_all_timed_modes(hass, entry.entry_id, disable_modes=True)
+    except Exception as exc:
+        _LOGGER.warning("[Enphase] Error cleaning up timed modes on unload: %s", exc)
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
@@ -153,6 +171,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 SERVICE_UPDATE_SCHEDULE,
                 SERVICE_DELETE_SCHEDULE,
                 SERVICE_VALIDATE_SCHEDULE,
+                SERVICE_ENABLE_TIMED_MODE,
             ):
                 if hass.services.has_service(DOMAIN, service):
                     hass.services.async_remove(DOMAIN, service)
@@ -556,6 +575,20 @@ def _register_services(hass: HomeAssistant) -> None:
                 notification_id=f"{DOMAIN}_schedule_validate",
             )
 
+    async def async_enable_timed_mode_service(call: ServiceCall) -> None:
+        from .timed_mode import enable_timed_mode
+
+        coordinator = _get_coordinator_from_call(hass, call)
+        entry_id = coordinator.entry.entry_id
+        mode = str(call.data["mode"]).lower()
+        duration = int(call.data["duration"])
+
+        try:
+            await enable_timed_mode(hass, entry_id, mode, duration)
+        except Exception as exc:
+            _LOGGER.error("[Enphase] enable_timed_mode failed: %s", exc)
+            raise HomeAssistantError(f"Failed to enable timed {mode.upper()}: {exc}") from exc
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_FORCE_REFRESH,
@@ -582,6 +615,12 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_VALIDATE_SCHEDULE,
         async_validate_schedule_service,
         schema=VALIDATE_SCHEDULE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ENABLE_TIMED_MODE,
+        async_enable_timed_mode_service,
+        schema=ENABLE_TIMED_MODE_SCHEMA,
     )
 
 
