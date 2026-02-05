@@ -326,10 +326,15 @@ class EnphaseClient:
 
         # Payload mapping for each mode type
         if short_mode == "cfg":
-            payload = {
+            cfg_control = {
                 "chargeFromGrid": enable,
+                "scheduleSupported": True,
                 "acceptedItcDisclaimer": self._now_iso(),
             }
+            if start_time and end_time:
+                cfg_control["startTime"] = self._time_to_minutes(start_time)
+                cfg_control["endTime"] = self._time_to_minutes(end_time)
+            payload = {"cfgControl": cfg_control}
         elif short_mode == "dtg":
             payload = {
                 "dtgControl": {
