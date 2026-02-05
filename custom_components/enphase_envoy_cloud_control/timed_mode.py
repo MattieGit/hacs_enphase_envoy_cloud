@@ -133,6 +133,14 @@ async def enable_timed_mode(
         mode, start_str, end_str, days, duration_minutes,
     )
 
+    # Validate schedule (required opt-in for cfg mode)
+    try:
+        await hass.async_add_executor_job(
+            client.validate_schedule, mode, mode == "cfg",
+        )
+    except Exception as exc:
+        _LOGGER.warning("[Enphase] Schedule validation failed: %s", exc)
+
     # Add schedule
     result = await hass.async_add_executor_job(
         client.add_schedule, mode, start_str, end_str, 100, days, tz,

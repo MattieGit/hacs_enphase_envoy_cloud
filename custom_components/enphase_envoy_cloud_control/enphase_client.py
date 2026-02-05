@@ -469,7 +469,12 @@ class EnphaseClient:
                 r.status_code,
                 r.text,
             )
-        r.raise_for_status()
+        if not r.ok:
+            _LOGGER.error(
+                "[Enphase] add_schedule(%s) failed: %s %s",
+                schedule_type, r.status_code, r.text,
+            )
+            r.raise_for_status()
         _LOGGER.info("[Enphase] Schedule added successfully.")
         return r.json()
 
