@@ -61,7 +61,7 @@ class EnphaseTimedDuration(NumberEntity):
     _attr_native_max_value = 1440
     _attr_native_step = 1
     _attr_native_unit_of_measurement = "min"
-    _attr_name = "Enphase Timed Duration"
+    _attr_name = "Timed Duration"
     _attr_icon = "mdi:timer-outline"
 
     def __init__(self, entry_id: str):

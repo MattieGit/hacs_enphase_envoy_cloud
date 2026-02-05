@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN
-from .device import schedule_editor_device_info
+from .device import battery_device_info, schedule_editor_device_info
 from .editor import (
     editor_days_from_list,
     get_coordinator,
@@ -25,6 +26,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         [
             EnphaseScheduleSelect(coordinator, entry.entry_id),
             EnphaseNewScheduleTypeSelect(entry.entry_id),
+            EnphaseTimedModeSelect(entry.entry_id),
         ],
         True,
     )
@@ -101,3 +103,30 @@ class EnphaseNewScheduleTypeSelect(SelectEntity):
     @property
     def device_info(self):
         return schedule_editor_device_info(self.entry_id)
+
+
+class EnphaseTimedModeSelect(SelectEntity):
+    """Select which mode to use for timed mode."""
+
+    _attr_name = "Timed Mode"
+    _attr_icon = "mdi:battery-clock"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry_id: str):
+        self.entry_id = entry_id
+        self._attr_unique_id = f"{entry_id}_timed_mode_select"
+        self._attr_options = ["Charge from Grid", "Discharge to Grid", "Restrict Battery Discharge"]
+        self._selected = "Restrict Battery Discharge"
+
+    @property
+    def current_option(self) -> str:
+        return self._selected
+
+    async def async_select_option(self, option: str) -> None:
+        if option in self._attr_options:
+            self._selected = option
+            self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        return battery_device_info(self.entry_id)

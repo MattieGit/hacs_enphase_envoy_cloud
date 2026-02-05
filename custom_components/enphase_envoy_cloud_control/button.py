@@ -23,9 +23,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
             EnphaseScheduleSaveButton(entry.entry_id),
             EnphaseScheduleDeleteButton(entry.entry_id),
             EnphaseNewScheduleAddButton(entry.entry_id),
-            EnphaseTimedModeButton(coordinator, "cfg"),
-            EnphaseTimedModeButton(coordinator, "dtg"),
-            EnphaseTimedModeButton(coordinator, "rbd"),
+            EnphaseStartTimedModeButton(coordinator),
+            EnphaseCancelTimedModeButton(coordinator),
         ],
         True,
     )
@@ -256,42 +255,71 @@ class EnphaseNewScheduleAddButton(ButtonEntity):
         return schedule_editor_device_info(self.entry_id)
 
 
-class EnphaseTimedModeButton(CoordinatorEntity, ButtonEntity):
-    """Button to enable a battery mode for a timed duration."""
+class EnphaseStartTimedModeButton(CoordinatorEntity, ButtonEntity):
+    """Button to start a timed battery mode."""
 
+    _attr_name = "Start Timed Mode"
+    _attr_icon = "mdi:timer-play-outline"
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, coordinator, mode: str):
+    def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._mode = mode
-        self._attr_name = f"Enphase Timed {mode.upper()}"
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_timed_{mode}"
-        self._attr_icon = "mdi:timer-play-outline"
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_start_timed_mode"
 
     async def async_press(self) -> None:
-        """Read duration from the number entity and enable timed mode."""
         from .timed_mode import enable_timed_mode
-
-        entry_id = self.coordinator.entry.entry_id
-
-        # Find the duration entity's current value via entity registry
         from homeassistant.helpers import entity_registry as er
 
+        entry_id = self.coordinator.entry.entry_id
         ent_reg = er.async_get(self.hass)
-        duration_entity_id = ent_reg.async_get_entity_id(
-            "number", DOMAIN, f"{entry_id}_timed_duration"
-        )
-        state = self.hass.states.get(duration_entity_id) if duration_entity_id else None
-        if state is None or state.state in ("unknown", "unavailable"):
-            duration = 60  # fallback default
+
+        # Read mode from select entity
+        mode_entity_id = ent_reg.async_get_entity_id("select", DOMAIN, f"{entry_id}_timed_mode_select")
+        mode_state = self.hass.states.get(mode_entity_id) if mode_entity_id else None
+        mode_map = {"Charge from Grid": "cfg", "Discharge to Grid": "dtg", "Restrict Battery Discharge": "rbd"}
+        mode = mode_map.get(mode_state.state, "rbd") if mode_state and mode_state.state not in ("unknown", "unavailable") else "rbd"
+
+        # Read duration from number entity
+        dur_entity_id = ent_reg.async_get_entity_id("number", DOMAIN, f"{entry_id}_timed_duration")
+        dur_state = self.hass.states.get(dur_entity_id) if dur_entity_id else None
+        if dur_state is None or dur_state.state in ("unknown", "unavailable"):
+            duration = 60
         else:
             try:
-                duration = int(float(state.state))
+                duration = int(float(dur_state.state))
             except (ValueError, TypeError):
                 duration = 60
 
-        _LOGGER.info("[Enphase] Timed %s button pressed, duration=%d min", self._mode, duration)
-        await enable_timed_mode(self.hass, entry_id, self._mode, duration)
+        _LOGGER.info("[Enphase] Start Timed Mode: %s for %d min", mode, duration)
+        await enable_timed_mode(self.hass, entry_id, mode, duration)
+
+    @property
+    def device_info(self):
+        return battery_device_info(self.coordinator.entry.entry_id)
+
+
+class EnphaseCancelTimedModeButton(CoordinatorEntity, ButtonEntity):
+    """Button to cancel an active timed battery mode."""
+
+    _attr_name = "Cancel Timed Mode"
+    _attr_icon = "mdi:timer-off-outline"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_cancel_timed_mode"
+
+    async def async_press(self) -> None:
+        from .timed_mode import get_active_timed_mode, cancel_timed_mode
+
+        entry_id = self.coordinator.entry.entry_id
+        active = get_active_timed_mode(self.hass, entry_id)
+        if not active:
+            _LOGGER.info("[Enphase] Cancel Timed Mode pressed but no timed mode active.")
+            return
+        mode = active["mode"]
+        _LOGGER.info("[Enphase] Cancelling timed %s mode.", mode)
+        await cancel_timed_mode(self.hass, entry_id, mode, disable_mode=True)
 
     @property
     def device_info(self):

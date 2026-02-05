@@ -41,6 +41,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     for mode in ["cfg", "dtg", "rbd"]:
         sensors.append(EnphaseScheduleSensor(coordinator, mode))
 
+    sensors.append(EnphaseTimedModeActiveSensor(coordinator))
+
     async_add_entities(sensors, True)
 
 
@@ -293,4 +295,45 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Ensure this sensor attaches to the same device as toggles."""
+        return battery_device_info(self.coordinator.entry.entry_id)
+
+
+class EnphaseTimedModeActiveSensor(CoordinatorEntity, SensorEntity):
+    """Sensor showing the currently active timed mode and remaining time."""
+
+    _attr_name = "Timed Mode Active"
+    _attr_icon = "mdi:timer-outline"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_timed_mode_active"
+
+    @property
+    def state(self):
+        from .timed_mode import get_active_timed_mode
+        entry_id = self.coordinator.entry.entry_id
+        active = get_active_timed_mode(self.hass, entry_id)
+        if not active:
+            return "Idle"
+        name = active["mode_name"]
+        remaining = active["remaining_minutes"]
+        return f"{name} — {remaining} min remaining"
+
+    @property
+    def extra_state_attributes(self):
+        from .timed_mode import get_active_timed_mode
+        entry_id = self.coordinator.entry.entry_id
+        active = get_active_timed_mode(self.hass, entry_id)
+        if not active:
+            return {"mode": "none"}
+        return {
+            "mode": active["mode"],
+            "mode_name": active["mode_name"],
+            "remaining_minutes": active["remaining_minutes"],
+            "expires_at": active["expires_at"],
+            "schedule_id": active.get("schedule_id"),
+        }
+
+    @property
+    def device_info(self):
         return battery_device_info(self.coordinator.entry.entry_id)
