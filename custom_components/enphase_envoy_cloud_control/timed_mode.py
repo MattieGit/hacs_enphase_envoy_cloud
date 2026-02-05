@@ -18,12 +18,36 @@ STORE_KEY = f"{DOMAIN}_timed_modes"
 STORE_VERSION = 1
 
 
+MODE_NAMES = {"cfg": "Charge from Grid", "dtg": "Discharge to Grid", "rbd": "Restrict Battery Discharge"}
+
+
 def _timed_modes(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
     """Return the timed_modes dict for an entry, creating it if needed."""
     entry_data = hass.data[DOMAIN][entry_id]
     if "timed_modes" not in entry_data:
         entry_data["timed_modes"] = {}
     return entry_data["timed_modes"]
+
+
+def get_active_timed_mode(hass: HomeAssistant, entry_id: str) -> dict[str, Any] | None:
+    """Return info about the currently active timed mode, or None."""
+    timed = _timed_modes(hass, entry_id)
+    for mode, info in timed.items():
+        expires_at_str = info.get("expires_at")
+        if not expires_at_str:
+            continue
+        expires_at = datetime.fromisoformat(expires_at_str)
+        if expires_at > datetime.now(timezone.utc):
+            remaining = expires_at - datetime.now(timezone.utc)
+            remaining_minutes = max(1, int(remaining.total_seconds() / 60))
+            return {
+                "mode": mode,
+                "mode_name": info.get("mode_name", mode.upper()),
+                "remaining_minutes": remaining_minutes,
+                "expires_at": expires_at_str,
+                "schedule_id": info.get("schedule_id"),
+            }
+    return None
 
 
 def _calculate_schedule_times(
@@ -57,7 +81,12 @@ async def _save_store(hass: HomeAssistant, entry_id: str) -> None:
     timed = _timed_modes(hass, entry_id)
     store = Store(hass, STORE_VERSION, f"{STORE_KEY}_{entry_id}")
     data = {
-        mode: {"schedule_id": info["schedule_id"], "mode": mode}
+        mode: {
+            "schedule_id": info["schedule_id"],
+            "mode": mode,
+            "expires_at": info.get("expires_at"),
+            "mode_name": info.get("mode_name"),
+        }
         for mode, info in timed.items()
         if info.get("schedule_id")
     }
@@ -93,6 +122,9 @@ async def enable_timed_mode(
     await cancel_timed_mode(hass, entry_id, mode, disable_mode=True)
 
     tz = hass.config.time_zone or "UTC"
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo(tz) if tz else timezone.utc)
+    expires_at = now + timedelta(minutes=duration_minutes)
     start_str, end_str, days = _calculate_schedule_times(duration_minutes, tz)
 
     _LOGGER.info(
@@ -132,6 +164,8 @@ async def enable_timed_mode(
     timed[mode] = {
         "schedule_id": schedule_id,
         "cancel": cancel,
+        "expires_at": expires_at.isoformat(),
+        "mode_name": MODE_NAMES.get(mode, mode.upper()),
     }
 
     await _save_store(hass, entry_id)
