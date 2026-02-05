@@ -328,23 +328,20 @@ class EnphaseClient:
         if short_mode == "cfg":
             cfg_control = {
                 "chargeFromGrid": enable,
-                "scheduleSupported": True,
                 "acceptedItcDisclaimer": self._now_iso(),
             }
             if start_time and end_time:
+                cfg_control["scheduleSupported"] = True
                 cfg_control["startTime"] = self._time_to_minutes(start_time)
                 cfg_control["endTime"] = self._time_to_minutes(end_time)
             payload = {"cfgControl": cfg_control}
         elif short_mode == "dtg":
-            payload = {
-                "dtgControl": {
-                    "enabled": enable,
-                    "scheduleSupported": True,
-                }
-            }
+            dtg_control = {"enabled": enable}
             if start_time and end_time:
-                payload["dtgControl"]["startTime"] = self._time_to_minutes(start_time)
-                payload["dtgControl"]["endTime"] = self._time_to_minutes(end_time)
+                dtg_control["scheduleSupported"] = True
+                dtg_control["startTime"] = self._time_to_minutes(start_time)
+                dtg_control["endTime"] = self._time_to_minutes(end_time)
+            payload = {"dtgControl": dtg_control}
         elif short_mode == "rbd":
             payload = {"rbdControl": {"enabled": enable}}
         else:
