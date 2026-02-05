@@ -37,7 +37,8 @@ class EnphaseModeSwitch(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         self.key = key
         self.short_mode = key.replace("Control", "")
-        self._attr_name = f"Enphase {self.short_mode.upper()} Mode"
+        mode_names = {"cfg": "Charge from Grid", "dtg": "Discharge to Grid", "rbd": "Restrict Battery Discharge"}
+        self._attr_name = mode_names.get(self.short_mode, f"Enphase {self.short_mode.upper()} Mode")
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{self.short_mode.lower()}"
 
     # ------------------------------------------------------------------
