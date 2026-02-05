@@ -110,7 +110,6 @@ class EnphaseTimedModeSelect(SelectEntity):
 
     _attr_name = "Timed Mode"
     _attr_icon = "mdi:battery-clock"
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, entry_id: str):
         self.entry_id = entry_id

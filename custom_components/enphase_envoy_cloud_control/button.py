@@ -18,8 +18,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(
         [
             EnphaseForceCloudRefreshButton(coordinator),
-            EnphaseAddScheduleButton(coordinator),
-            EnphaseDeleteScheduleButton(coordinator),
             EnphaseScheduleSaveButton(entry.entry_id),
             EnphaseScheduleDeleteButton(entry.entry_id),
             EnphaseNewScheduleAddButton(entry.entry_id),
@@ -260,7 +258,6 @@ class EnphaseStartTimedModeButton(CoordinatorEntity, ButtonEntity):
 
     _attr_name = "Start Timed Mode"
     _attr_icon = "mdi:timer-play-outline"
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
@@ -303,7 +300,6 @@ class EnphaseCancelTimedModeButton(CoordinatorEntity, ButtonEntity):
 
     _attr_name = "Cancel Timed Mode"
     _attr_icon = "mdi:timer-off-outline"
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         super().__init__(coordinator)

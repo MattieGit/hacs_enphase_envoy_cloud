@@ -61,6 +61,7 @@ class EnphaseTimedDuration(NumberEntity):
     _attr_native_max_value = 1440
     _attr_native_step = 1
     _attr_native_unit_of_measurement = "min"
+    _attr_suggested_display_precision = 0
     _attr_name = "Timed Duration"
     _attr_icon = "mdi:timer-outline"
 
