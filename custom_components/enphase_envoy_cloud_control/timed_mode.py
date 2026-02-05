@@ -178,7 +178,9 @@ async def cancel_timed_mode(
 
     timed = _timed_modes(hass, entry_id)
     info = timed.pop(mode, None)
+    _LOGGER.debug("[Enphase] cancel_timed_mode(%s): info=%s, disable_mode=%s", mode, info, disable_mode)
     if info is None:
+        _LOGGER.debug("[Enphase] No active timed mode for %s, nothing to cancel.", mode)
         return
 
     # Cancel the pending timer if it hasn't fired yet
@@ -200,18 +202,11 @@ async def cancel_timed_mode(
                 "[Enphase] Failed to delete timed schedule %s: %s", schedule_id, exc
             )
 
-    # Disable the mode (skip if the user already turned it off)
+    # Disable the mode
     if disable_mode:
         try:
-            data = coordinator.data or {}
-            control = data.get("data", {}).get(f"{mode}Control", {})
-            if mode == "cfg":
-                currently_on = control.get("chargeFromGrid", False)
-            else:
-                currently_on = control.get("enabled", False)
-            if currently_on:
-                await hass.async_add_executor_job(client.set_mode, mode, False)
-                _LOGGER.info("[Enphase] Disabled %s after timed mode expiry.", mode)
+            await hass.async_add_executor_job(client.set_mode, mode, False)
+            _LOGGER.info("[Enphase] Disabled %s after timed mode expiry.", mode)
         except Exception as exc:
             _LOGGER.error("[Enphase] Failed to disable %s: %s", mode, exc)
 
