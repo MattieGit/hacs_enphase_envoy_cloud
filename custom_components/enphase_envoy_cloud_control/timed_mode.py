@@ -28,13 +28,18 @@ def _timed_modes(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
 
 def _calculate_schedule_times(
     duration_minutes: int,
+    tz_name: str = "UTC",
 ) -> tuple[str, str, list[int]]:
     """Calculate start time, end time and ISO weekday list for a timed schedule.
 
     Returns (start_HH:MM, end_HH:MM, days) where days uses ISO weekday
     numbering (1=Monday .. 7=Sunday).  Handles midnight crossing.
+    Times are in the given timezone so they match what the API expects.
     """
-    now = datetime.now(timezone.utc)
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(tz_name) if tz_name else timezone.utc
+    now = datetime.now(tz)
     end = now + timedelta(minutes=duration_minutes)
 
     start_str = now.strftime("%H:%M")
@@ -87,8 +92,8 @@ async def enable_timed_mode(
     # Cancel existing timed mode for this mode if active
     await cancel_timed_mode(hass, entry_id, mode, disable_mode=True)
 
-    start_str, end_str, days = _calculate_schedule_times(duration_minutes)
     tz = hass.config.time_zone or "UTC"
+    start_str, end_str, days = _calculate_schedule_times(duration_minutes, tz)
 
     _LOGGER.info(
         "[Enphase] Enabling timed %s: %s–%s days=%s (%d min)",
@@ -185,7 +190,10 @@ async def cancel_timed_mode(
         try:
             data = coordinator.data or {}
             control = data.get("data", {}).get(f"{mode}Control", {})
-            currently_on = control.get("enabled", False)
+            if mode == "cfg":
+                currently_on = control.get("chargeFromGrid", False)
+            else:
+                currently_on = control.get("enabled", False)
             if currently_on:
                 await hass.async_add_executor_job(client.set_mode, mode, False)
                 _LOGGER.info("[Enphase] Disabled %s after timed mode expiry.", mode)
