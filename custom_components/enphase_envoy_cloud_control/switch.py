@@ -3,7 +3,6 @@ import asyncio
 import logging
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN
 from .device import battery_device_info, schedule_editor_device_info
 from .editor import DAY_ORDER, get_coordinator, get_entry_data
 

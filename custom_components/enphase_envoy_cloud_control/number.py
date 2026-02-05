@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity
 
-from .const import DOMAIN
 from .device import battery_device_info, schedule_editor_device_info
 from .editor import get_entry_data
 

@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import EntityCategory
-from .const import DOMAIN
 from .device import battery_device_info
 from .editor import normalize_schedules, get_coordinator
 

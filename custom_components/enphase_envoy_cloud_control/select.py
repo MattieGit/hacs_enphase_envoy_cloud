@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.helpers.entity import EntityCategory
 
-from .const import DOMAIN
 from .device import battery_device_info, schedule_editor_device_info
 from .editor import (
     editor_days_from_list,

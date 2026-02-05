@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .const import DEVICE_KIND_BATTERY, DEVICE_KIND_SCHEDULE_EDITOR, DOMAIN
+from .const import DEVICE_KIND_SCHEDULE_EDITOR, DOMAIN
 
 
 def battery_device_info(entry_id: str) -> dict:

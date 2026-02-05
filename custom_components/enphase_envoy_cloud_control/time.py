@@ -6,7 +6,6 @@ from datetime import time
 
 from homeassistant.components.time import TimeEntity
 
-from .const import DOMAIN
 from .device import schedule_editor_device_info
 from .editor import get_entry_data
 
