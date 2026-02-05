@@ -325,20 +325,18 @@ class EnphaseClient:
         }
 
         # Payload mapping for each mode type
+        # CFG is NOT wrapped in cfgControl — sent at top level per original API
         if short_mode == "cfg":
-            cfg_control = {
+            payload = {
                 "chargeFromGrid": enable,
                 "acceptedItcDisclaimer": self._now_iso(),
             }
-            if start_time and end_time:
-                cfg_control["scheduleSupported"] = True
-                cfg_control["startTime"] = self._time_to_minutes(start_time)
-                cfg_control["endTime"] = self._time_to_minutes(end_time)
-            payload = {"cfgControl": cfg_control}
         elif short_mode == "dtg":
-            dtg_control = {"enabled": enable}
+            dtg_control = {
+                "enabled": enable,
+                "scheduleSupported": True,
+            }
             if start_time and end_time:
-                dtg_control["scheduleSupported"] = True
                 dtg_control["startTime"] = self._time_to_minutes(start_time)
                 dtg_control["endTime"] = self._time_to_minutes(end_time)
             payload = {"dtgControl": dtg_control}

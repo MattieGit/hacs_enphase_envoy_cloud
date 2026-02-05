@@ -108,10 +108,8 @@ async def enable_timed_mode(
 ) -> None:
     """Enable a battery mode for *duration_minutes*, then auto-disable.
 
-    1. Cancel any existing timed mode for this mode type.
-    2. Create a temporary schedule via the Enphase API.
-    3. Enable the mode.
-    4. Set a timer to clean up when the duration expires.
+    Simple approach: just enable the mode now and set a timer to disable it.
+    No schedule creation — that's complex with day-of-week logic.
     """
     from .editor import get_coordinator  # local to avoid circular import
 
@@ -120,55 +118,22 @@ async def enable_timed_mode(
     timed = _timed_modes(hass, entry_id)
 
     # Cancel existing timed mode for this mode if active
-    await cancel_timed_mode(hass, entry_id, mode, disable_mode=True)
+    await cancel_timed_mode(hass, entry_id, mode, disable_mode=False)
 
     tz = hass.config.time_zone or "UTC"
     from zoneinfo import ZoneInfo
     now = datetime.now(ZoneInfo(tz) if tz else timezone.utc)
     expires_at = now + timedelta(minutes=duration_minutes)
-    start_str, end_str, days = _calculate_schedule_times(duration_minutes, tz)
 
     _LOGGER.info(
-        "[Enphase] Enabling timed %s: %s–%s days=%s (%d min)",
-        mode, start_str, end_str, days, duration_minutes,
+        "[Enphase] Enabling timed %s for %d min (expires %s)",
+        mode, duration_minutes, expires_at.isoformat(),
     )
 
-    # Validate schedule (required opt-in for cfg mode)
-    try:
-        await hass.async_add_executor_job(
-            client.validate_schedule, mode, mode == "cfg",
-        )
-    except Exception as exc:
-        _LOGGER.warning("[Enphase] Schedule validation failed: %s", exc)
+    # Enable the mode immediately
+    await hass.async_add_executor_job(client.set_mode, mode, True)
 
-    # Add schedule
-    result = await hass.async_add_executor_job(
-        client.add_schedule, mode, start_str, end_str, 100, days, tz,
-    )
-
-    # Extract schedule ID from the response
-    schedule_id: str | None = None
-    if isinstance(result, dict):
-        schedule_id = result.get("scheduleId") or result.get("id")
-    if not schedule_id:
-        # Refresh schedules and find the new one by matching times
-        await coordinator.async_request_refresh()
-        _LOGGER.warning(
-            "[Enphase] Could not extract schedule ID from add_schedule response; "
-            "cleanup may require manual deletion."
-        )
-
-    # Wait for the schedule to propagate in the Enphase API
-    await asyncio.sleep(2)
-
-    # Enable the mode (only dtg accepts start/end times in set_mode)
-    await hass.async_add_executor_job(
-        client.set_mode, mode, True,
-        start_str if mode == "dtg" else None,
-        end_str if mode == "dtg" else None,
-    )
-
-    # Set up expiry timer
+    # Set up expiry timer to disable the mode
     cancel: CALLBACK_TYPE = async_call_later(
         hass,
         duration_minutes * 60,
@@ -178,7 +143,7 @@ async def enable_timed_mode(
     )
 
     timed[mode] = {
-        "schedule_id": schedule_id,
+        "schedule_id": None,  # No schedule created
         "cancel": cancel,
         "expires_at": expires_at.isoformat(),
         "mode_name": MODE_NAMES.get(mode, mode.upper()),
@@ -186,7 +151,7 @@ async def enable_timed_mode(
 
     await _save_store(hass, entry_id)
 
-    # Refresh so entities pick up the new schedule
+    # Refresh so entities pick up the mode change
     async_call_later(
         hass, 5,
         lambda _: hass.async_create_task(coordinator.async_request_refresh()),
@@ -196,8 +161,8 @@ async def enable_timed_mode(
 async def _on_timed_mode_expired(
     hass: HomeAssistant, entry_id: str, mode: str
 ) -> None:
-    """Timer callback: delete the temporary schedule and disable the mode."""
-    _LOGGER.info("[Enphase] Timed %s expired — cleaning up.", mode)
+    """Timer callback: disable the mode when timed duration expires."""
+    _LOGGER.info("[Enphase] Timed %s expired — disabling mode.", mode)
     await cancel_timed_mode(hass, entry_id, mode, disable_mode=True)
 
 
@@ -208,7 +173,7 @@ async def cancel_timed_mode(
     *,
     disable_mode: bool = True,
 ) -> None:
-    """Cancel an active timed mode: delete schedule, optionally disable mode."""
+    """Cancel an active timed mode, optionally disabling the mode."""
     from .editor import get_coordinator
 
     timed = _timed_modes(hass, entry_id)

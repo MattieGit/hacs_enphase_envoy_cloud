@@ -211,8 +211,9 @@ class TestSetMode:
         assert result is True
         call_kwargs = mock_session.put.call_args
         payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert "cfgControl" in payload
-        assert payload["cfgControl"]["chargeFromGrid"] is True
+        # CFG payload is NOT wrapped in cfgControl — sent at top level
+        assert payload["chargeFromGrid"] is True
+        assert "acceptedItcDisclaimer" in payload
 
     @patch("custom_components.enphase_envoy_cloud_control.enphase_client.SESSION")
     def test_dtg_mode_with_times(self, mock_session, client):

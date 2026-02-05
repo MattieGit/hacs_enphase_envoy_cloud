@@ -117,8 +117,8 @@ class TestGetActiveTimedMode:
 # ---------------------------------------------------------------------------
 class TestEnableTimedMode:
     @pytest.mark.asyncio
-    async def test_creates_schedule_and_enables_mode(self, hass_with_timed, mock_coordinator):
-        mock_coordinator.client.add_schedule.return_value = {"scheduleId": "timed-sched-1"}
+    async def test_enables_mode_and_sets_timer(self, hass_with_timed, mock_coordinator):
+        """Timed mode simply enables the mode and sets a timer to disable it."""
         mock_coordinator.client.set_mode.return_value = True
 
         with patch(
@@ -135,18 +135,14 @@ class TestEnableTimedMode:
                 ):
                     await enable_timed_mode(hass_with_timed, ENTRY_ID, "rbd", 60)
 
-        # Verify schedule was added
-        mock_coordinator.client.add_schedule.assert_called_once()
-        # Verify mode was enabled (rbd doesn't pass start/end times)
-        call_args = mock_coordinator.client.set_mode.call_args
-        assert call_args[0][0] == "rbd"
-        assert call_args[0][1] is True
-        assert call_args[0][2] is None  # no start_time for rbd
-        assert call_args[0][3] is None  # no end_time for rbd
+        # No schedule created — just enable mode and set timer
+        mock_coordinator.client.add_schedule.assert_not_called()
+        # Verify mode was enabled
+        mock_coordinator.client.set_mode.assert_called_once_with("rbd", True)
         # Verify timed modes dict was populated
         timed = hass_with_timed.data[DOMAIN][ENTRY_ID]["timed_modes"]
         assert "rbd" in timed
-        assert timed["rbd"]["schedule_id"] == "timed-sched-1"
+        assert timed["rbd"]["schedule_id"] is None  # No schedule
 
     @pytest.mark.asyncio
     async def test_cancels_existing_before_enabling(self, hass_with_timed, mock_coordinator):
