@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.coverage
+.venv/
+.ruff_cache/
+.pytest_cache/
+custom_components/enphase_envoy_cloud_control/.cache/
