@@ -149,8 +149,10 @@ async def enable_timed_mode(
             "cleanup may require manual deletion."
         )
 
-    # Enable the mode
-    await hass.async_add_executor_job(client.set_mode, mode, True)
+    # Enable the mode (pass schedule times so the API accepts the payload)
+    await hass.async_add_executor_job(
+        client.set_mode, mode, True, start_str, end_str,
+    )
 
     # Set up expiry timer
     cancel: CALLBACK_TYPE = async_call_later(

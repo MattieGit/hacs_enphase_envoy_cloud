@@ -137,8 +137,11 @@ class TestEnableTimedMode:
 
         # Verify schedule was added
         mock_coordinator.client.add_schedule.assert_called_once()
-        # Verify mode was enabled
-        mock_coordinator.client.set_mode.assert_called_with("rbd", True)
+        # Verify mode was enabled with schedule times
+        call_args = mock_coordinator.client.set_mode.call_args
+        assert call_args[0][0] == "rbd"
+        assert call_args[0][1] is True
+        assert len(call_args[0]) == 4  # mode, enable, start_str, end_str
         # Verify timed modes dict was populated
         timed = hass_with_timed.data[DOMAIN][ENTRY_ID]["timed_modes"]
         assert "rbd" in timed
