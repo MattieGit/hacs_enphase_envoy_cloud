@@ -4,7 +4,7 @@ import logging
 
 DOMAIN = "enphase_envoy_cloud_control"
 NAME = "Enphase Envoy Cloud Control"
-VERSION = "1.8.2"
+VERSION = "1.8.3"
 DEVICE_KIND_BATTERY = "battery"
 DEVICE_KIND_SCHEDULE_EDITOR = "schedule_editor"
 

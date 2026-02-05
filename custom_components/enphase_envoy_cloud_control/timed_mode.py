@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -149,9 +150,14 @@ async def enable_timed_mode(
             "cleanup may require manual deletion."
         )
 
-    # Enable the mode (pass schedule times so the API accepts the payload)
+    # Wait for the schedule to propagate in the Enphase API
+    await asyncio.sleep(2)
+
+    # Enable the mode (only dtg accepts start/end times in set_mode)
     await hass.async_add_executor_job(
-        client.set_mode, mode, True, start_str, end_str,
+        client.set_mode, mode, True,
+        start_str if mode == "dtg" else None,
+        end_str if mode == "dtg" else None,
     )
 
     # Set up expiry timer
