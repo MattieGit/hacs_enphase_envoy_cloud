@@ -23,6 +23,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
             EnphaseScheduleSaveButton(entry.entry_id),
             EnphaseScheduleDeleteButton(entry.entry_id),
             EnphaseNewScheduleAddButton(entry.entry_id),
+            EnphaseTimedModeButton(coordinator, "cfg"),
+            EnphaseTimedModeButton(coordinator, "dtg"),
+            EnphaseTimedModeButton(coordinator, "rbd"),
         ],
         True,
     )
@@ -251,3 +254,40 @@ class EnphaseNewScheduleAddButton(ButtonEntity):
     @property
     def device_info(self):
         return schedule_editor_device_info(self.entry_id)
+
+
+class EnphaseTimedModeButton(CoordinatorEntity, ButtonEntity):
+    """Button to enable a battery mode for a timed duration."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator, mode: str):
+        super().__init__(coordinator)
+        self._mode = mode
+        self._attr_name = f"Enphase Timed {mode.upper()}"
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_timed_{mode}"
+        self._attr_icon = "mdi:timer-play-outline"
+
+    async def async_press(self) -> None:
+        """Read duration from the number entity and enable timed mode."""
+        from .timed_mode import enable_timed_mode
+
+        entry_id = self.coordinator.entry.entry_id
+
+        # Find the duration entity's current value
+        duration_entity_id = "number.enphase_timed_duration"
+        state = self.hass.states.get(duration_entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            duration = 60  # fallback default
+        else:
+            try:
+                duration = int(float(state.state))
+            except (ValueError, TypeError):
+                duration = 60
+
+        _LOGGER.info("[Enphase] Timed %s button pressed, duration=%d min", self._mode, duration)
+        await enable_timed_mode(self.hass, entry_id, self._mode, duration)
+
+    @property
+    def device_info(self):
+        return battery_device_info(self.coordinator.entry.entry_id)
