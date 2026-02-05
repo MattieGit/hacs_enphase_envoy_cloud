@@ -10,6 +10,27 @@ from .editor import normalize_schedules, get_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+MODE_NAMES = {"cfg": "Charge from Grid", "dtg": "Discharge to Grid", "rbd": "Restrict Battery Discharge"}
+
+_DAY_ABBR = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
+
+
+def _format_days(days: list[int]) -> str:
+    """Format a list of ISO weekday ints into a readable string like 'Mon-Fri' or 'Mon, Wed, Fri'."""
+    if not days:
+        return ""
+    days = sorted(set(days))
+    if days == [1, 2, 3, 4, 5, 6, 7]:
+        return "Every day"
+    if days == [1, 2, 3, 4, 5]:
+        return "Mon-Fri"
+    if days == [6, 7]:
+        return "Sat-Sun"
+    # Check for consecutive run
+    if len(days) > 2 and days == list(range(days[0], days[-1] + 1)):
+        return f"{_DAY_ABBR[days[0]]}-{_DAY_ABBR[days[-1]]}"
+    return ", ".join(_DAY_ABBR.get(d, str(d)) for d in days)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Enphase sensors from a config entry."""
@@ -132,43 +153,6 @@ class EnphaseSchedulesSummarySensor(CoordinatorEntity, SensorEntity):
         return battery_device_info(self.coordinator.entry.entry_id)
 
 
-class EnphaseSchedulesSummarySensor(CoordinatorEntity, SensorEntity):
-    """Normalized schedule list for editor usage."""
-
-    _attr_name = "Enphase Schedules Summary"
-    _attr_icon = "mdi:calendar-multiple"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coordinator):
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_schedules_summary"
-
-    @property
-    def state(self):
-        schedules = normalize_schedules(self.coordinator)
-        return str(len(schedules))
-
-    @property
-    def extra_state_attributes(self):
-        attrs = {
-            "schedules": normalize_schedules(self.coordinator),
-            "last_refresh": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
-        }
-        if getattr(self.coordinator, "last_update_success_time", None):
-            t = self.coordinator.last_update_success_time
-            if isinstance(t, datetime):
-                attrs["last_successful_poll"] = t.strftime("%Y-%m-%dT%H:%M:%S%z")
-        return attrs
-
-    @property
-    def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.entry.entry_id)},
-            "name": "Enphase Envoy Cloud Control",
-            "manufacturer": "Enphase Energy",
-            "model": "Envoy Cloud API",
-        }
-
 
 # ---------------------------------------------------------------------------
 # PER-MODE SCHEDULE SENSORS
@@ -182,37 +166,51 @@ class EnphaseScheduleSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, mode: str):
         super().__init__(coordinator)
         self.mode = mode  # cfg | dtg | rbd
-        self._attr_name = f"Enphase {mode.upper()} Schedule"
+        self._attr_name = f"{MODE_NAMES.get(mode, mode.upper())} Schedule"
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{mode}_schedule"
 
     @property
     def state(self):
-        """Readable summary like '21:30–03:30, 05:00–06:00'."""
+        """Human-readable schedule summary."""
         scheds = self._schedules()
         if not scheds:
-            return "None"
-        state_parts = []
+            return "No schedules"
+        parts = []
         for sched in scheds:
             start = sched.get("startTime", "??")
             end = sched.get("endTime", "??")
-            schedule_id = sched.get("scheduleId")
-            label = f"#{schedule_id} " if schedule_id is not None else ""
-            state_parts.append(f"{label}{start}–{end}")
-        return ", ".join(state_parts)
+            limit = sched.get("limit") or sched.get("powerLimit")
+            days = sched.get("days") or sched.get("daysOfWeek") or []
+            if isinstance(days, (list, tuple)):
+                days_str = _format_days([int(d) for d in days if str(d).isdigit()])
+            else:
+                days_str = ""
+            limit_str = f" ({int(limit)}%)" if limit is not None else ""
+            day_prefix = f"{days_str} " if days_str else ""
+            parts.append(f"{day_prefix}{start}-{end}{limit_str}")
+        return ", ".join(parts)
 
     @property
     def extra_state_attributes(self):
-        """Expose full schedule details with IDs."""
-        attrs = {"schedules": self._schedules()}
-        # Include metadata for clarity
-        attrs["last_refresh"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z")
-        if getattr(self.coordinator, "last_update_success_time", None):
-            t = self.coordinator.last_update_success_time
-            if isinstance(t, datetime):
-                attrs["last_successful_poll"] = t.strftime("%Y-%m-%dT%H:%M:%S%z")
-        sched_ids = [s.get("scheduleId") for s in attrs["schedules"] if s.get("scheduleId")]
-        if sched_ids:
-            attrs["schedule_ids"] = sched_ids
+        """Expose individual schedules as numbered attributes."""
+        scheds = self._schedules()
+        attrs = {}
+        for i, sched in enumerate(scheds, 1):
+            start = sched.get("startTime", "??")
+            end = sched.get("endTime", "??")
+            limit = sched.get("limit") or sched.get("powerLimit")
+            days = sched.get("days") or sched.get("daysOfWeek") or []
+            if isinstance(days, (list, tuple)):
+                days_str = _format_days([int(d) for d in days if str(d).isdigit()])
+            else:
+                days_str = ""
+            limit_str = f" ({int(limit)}%)" if limit is not None else ""
+            day_prefix = f"{days_str} " if days_str else ""
+            attrs[f"schedule_{i}"] = f"{day_prefix}{start}-{end}{limit_str}"
+            schedule_id = sched.get("scheduleId")
+            if schedule_id:
+                attrs[f"schedule_{i}_id"] = str(schedule_id)
+        attrs["schedule_count"] = len(scheds)
         return attrs
 
     # ---------------------------------------------------------------------
